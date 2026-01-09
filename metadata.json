@@ -1,0 +1,7 @@
+{
+  "name": "Marmoraria Control - Gestão de Estoque",
+  "description": "Sistema modular de controle de chapas e sobras para marmorarias e marcenarias com rastreabilidade por QR Code.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
