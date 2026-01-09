@@ -2,12 +2,14 @@
 import React, { useState, useMemo } from 'react';
 import { InventoryItem, MaterialCategory, StockStatus } from '../types';
 import { STATUS_COLORS } from '../constants';
-import { Search, Filter, Layers, Calendar, Truck } from 'lucide-react';
+import { Search, Filter, Layers, Calendar, Truck, ArrowUpDown, Info, X } from 'lucide-react';
 
 interface InventoryListProps {
   inventory: InventoryItem[];
   onSelectItem: (id: string) => void;
 }
+
+type SortOption = 'latest' | 'oldest' | 'area-desc' | 'area-asc' | 'name';
 
 const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,6 +17,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterSupplier, setFilterSupplier] = useState<string>('all');
   const [filterEntryDate, setFilterEntryDate] = useState<string>('');
+  const [sortBy, setSortBy] = useState<SortOption>('latest');
 
   // Extrair fornecedores únicos para o filtro
   const suppliers = useMemo(() => {
@@ -22,16 +25,34 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
     return Array.from(set).sort();
   }, [inventory]);
 
-  const filteredItems = inventory.filter(item => {
-    const matchesSearch = item.commercialName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
-    const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
-    const matchesSupplier = filterSupplier === 'all' || item.supplier === filterSupplier;
-    const matchesEntryDate = !filterEntryDate || item.entryDate === filterEntryDate;
-    
-    return matchesSearch && matchesCategory && matchesStatus && matchesSupplier && matchesEntryDate;
-  });
+  const filteredAndSortedItems = useMemo(() => {
+    let result = inventory.filter(item => {
+      const matchesSearch = item.commercialName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            item.id.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
+      const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
+      const matchesSupplier = filterSupplier === 'all' || item.supplier === filterSupplier;
+      const matchesEntryDate = !filterEntryDate || item.entryDate === filterEntryDate;
+      
+      return matchesSearch && matchesCategory && matchesStatus && matchesSupplier && matchesEntryDate;
+    });
+
+    // Ordenação
+    return result.sort((a, b) => {
+      switch (sortBy) {
+        case 'latest': return new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime();
+        case 'oldest': return new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime();
+        case 'area-desc': return b.availableArea - a.availableArea;
+        case 'area-asc': return a.availableArea - b.availableArea;
+        case 'name': return a.commercialName.localeCompare(b.commercialName);
+        default: return 0;
+      }
+    });
+  }, [inventory, searchTerm, filterCategory, filterStatus, filterSupplier, filterEntryDate, sortBy]);
+
+  const totalFilteredArea = useMemo(() => {
+    return filteredAndSortedItems.reduce((acc, item) => acc + item.availableArea, 0);
+  }, [filteredAndSortedItems]);
 
   const clearFilters = () => {
     setFilterCategory('all');
@@ -39,37 +60,59 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
     setFilterSupplier('all');
     setFilterEntryDate('');
     setSearchTerm('');
+    setSortBy('latest');
   };
 
+  const isFiltered = filterCategory !== 'all' || filterStatus !== 'all' || filterSupplier !== 'all' || filterEntryDate !== '' || searchTerm !== '';
+
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn pb-20">
       {/* Barra de Busca e Filtros Superior */}
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+      <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
               type="text" 
               placeholder="Buscar por nome comercial ou ID..." 
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 font-medium transition-all"
+              className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 font-bold transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            onClick={clearFilters}
-            className="px-6 py-3 text-sm font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors"
-          >
-            Limpar Filtros
-          </button>
+          <div className="flex gap-2">
+            <div className="relative group min-w-[160px]">
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+              <select 
+                className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+              >
+                <option value="latest">MAIS RECENTES</option>
+                <option value="oldest">MAIS ANTIGOS</option>
+                <option value="area-desc">MAIOR ÁREA</option>
+                <option value="area-asc">MENOR ÁREA</option>
+                <option value="name">NOME (A-Z)</option>
+              </select>
+            </div>
+            {isFiltered && (
+              <button 
+                onClick={clearFilters}
+                className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors border border-red-100"
+                title="Limpar todos os filtros"
+              >
+                <X size={20} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {/* Filtro Categoria */}
-          <div className="relative group">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={14} />
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <select 
-              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
+              className={`w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase appearance-none cursor-pointer transition-colors ${filterCategory !== 'all' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500'}`}
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
             >
@@ -78,24 +121,11 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
             </select>
           </div>
 
-          {/* Filtro Status */}
-          <div className="relative group">
-            <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={14} />
+          {/* Filtro Fornecedor */}
+          <div className="relative">
+            <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <select 
-              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="all">TODOS STATUS</option>
-              {Object.values(StockStatus).map(st => <option key={st} value={st}>{st}</option>)}
-            </select>
-          </div>
-
-          {/* Filtro Fornecedor (NOVO) */}
-          <div className="relative group">
-            <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={14} />
-            <select 
-              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer"
+              className={`w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase appearance-none cursor-pointer transition-colors ${filterSupplier !== 'all' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500'}`}
               value={filterSupplier}
               onChange={(e) => setFilterSupplier(e.target.value)}
             >
@@ -104,12 +134,25 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
             </select>
           </div>
 
-          {/* Filtro Data de Entrada (NOVO) */}
-          <div className="relative group">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-focus-within:text-blue-500 transition-colors" size={14} />
+          {/* Filtro Status */}
+          <div className="relative">
+            <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
+            <select 
+              className={`w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase appearance-none cursor-pointer transition-colors ${filterStatus !== 'all' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500'}`}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">TODOS STATUS</option>
+              {Object.values(StockStatus).map(st => <option key={st} value={st}>{st}</option>)}
+            </select>
+          </div>
+
+          {/* Filtro Data de Entrada */}
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <input 
               type="date"
-              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+              className={`w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase cursor-pointer transition-colors ${filterEntryDate !== '' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500'}`}
               value={filterEntryDate}
               onChange={(e) => setFilterEntryDate(e.target.value)}
             />
@@ -117,58 +160,92 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
         </div>
       </div>
 
+      {/* Resumo da Listagem */}
+      <div className="flex flex-col sm:flex-row justify-between items-center px-4 py-2 bg-slate-900 rounded-2xl shadow-lg shadow-slate-900/10 text-white">
+        <div className="flex items-center gap-4 py-2">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Itens Filtrados</span>
+            <span className="text-lg font-black">{filteredAndSortedItems.length} Unidades</span>
+          </div>
+          <div className="h-8 w-px bg-white/10 hidden sm:block"></div>
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Total em Estoque</span>
+            <span className="text-lg font-black text-blue-400">{totalFilteredArea.toFixed(2)} m²</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter bg-white/5 px-4 py-2 rounded-xl border border-white/5">
+          <Info size={14} className="text-blue-400" /> Clique na chapa para detalhes e corte
+        </div>
+      </div>
+
       {/* Listagem de Itens */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map(item => (
+        {filteredAndSortedItems.map(item => (
           <div 
             key={item.id} 
             onClick={() => onSelectItem(item.id)}
-            className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
+            className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group"
           >
-            <div className="h-48 relative overflow-hidden">
+            <div className="h-52 relative overflow-hidden">
               <img 
                 src={item.photos[0]} 
                 alt={item.commercialName} 
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" 
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[9px] font-black uppercase border-2 shadow-sm backdrop-blur-md ${STATUS_COLORS[item.status]}`}>
-                {item.status}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60"></div>
+              
+              <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+                <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border-2 shadow-xl backdrop-blur-md ${STATUS_COLORS[item.status]}`}>
+                  {item.status}
+                </div>
               </div>
-              <div className="absolute bottom-4 left-4 bg-slate-900/80 text-white px-3 py-1 rounded-xl text-[10px] font-black tracking-widest backdrop-blur-md">
-                {item.id}
+
+              <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                <div className="bg-white/10 text-white px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest backdrop-blur-xl border border-white/20 shadow-lg">
+                  {item.id}
+                </div>
+                <div className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black shadow-lg">
+                  {item.category.toUpperCase()}
+                </div>
               </div>
             </div>
             
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-black text-slate-800 text-lg leading-tight group-hover:text-blue-600 transition-colors">{item.commercialName}</h4>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.category}</p>
+                <div className="min-w-0">
+                  <h4 className="font-black text-slate-900 text-xl leading-tight group-hover:text-blue-600 transition-colors truncate">{item.commercialName}</h4>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Truck size={10} className="text-slate-400" />
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider truncate">{item.supplier || 'Fornecedor N/A'}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-blue-600 font-black text-xl tracking-tighter">{item.availableArea.toFixed(2)}</span>
+                <div className="text-right shrink-0">
+                  <span className="text-blue-600 font-black text-2xl tracking-tighter">{item.availableArea.toFixed(2)}</span>
                   <span className="text-blue-400 font-bold text-[10px] ml-1 uppercase">m²</span>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <span className="bg-slate-50 text-slate-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase border border-slate-100">{item.thickness}</span>
-                <span className="bg-slate-50 text-slate-500 px-3 py-1 rounded-lg text-[9px] font-black uppercase border border-slate-100">{item.currentWidth}x{item.currentHeight} cm</span>
-                <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase border border-blue-100 flex items-center gap-1">
-                  <Truck size={10} /> {item.supplier || 'N/A'}
-                </span>
+                <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-slate-100 flex items-center gap-1.5">
+                  <Layers size={12} className="text-slate-400" /> {item.thickness}
+                </div>
+                <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-slate-100 flex items-center gap-1.5">
+                  <Search size={12} className="text-slate-400" /> {item.currentWidth}x{item.currentHeight} cm
+                </div>
               </div>
 
               <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 border border-white shadow-sm flex items-center justify-center text-[10px] text-slate-600 font-black">
-                    {item.supplier?.charAt(0) || '?'}
+                  <div className="w-8 h-8 rounded-xl bg-slate-900 text-white shadow-lg flex items-center justify-center text-[10px] font-black">
+                    {item.supplier?.charAt(0).toUpperCase() || '?'}
                   </div>
-                  <span className="text-[10px] text-slate-400 font-black uppercase tracking-tighter">Entrada: {item.entryDate}</span>
+                  <div className="flex flex-col">
+                    <span className="text-[8px] text-slate-400 font-black uppercase">Data de Entrada</span>
+                    <span className="text-[10px] text-slate-700 font-bold">{new Date(item.entryDate).toLocaleDateString('pt-BR')}</span>
+                  </div>
                 </div>
-                <div className="p-2 bg-slate-50 rounded-xl text-slate-300 group-hover:bg-blue-50 group-hover:text-blue-500 transition-all">
-                  <Layers size={16} />
+                <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-blue-500/20 group-hover:rotate-12">
+                  <ArrowUpDown size={18} />
                 </div>
               </div>
             </div>
@@ -176,20 +253,20 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
         ))}
       </div>
 
-      {filteredItems.length === 0 && (
-        <div className="py-32 text-center space-y-6 bg-white rounded-[3rem] border border-dashed border-slate-200">
-          <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Layers size={40} className="text-slate-200" />
+      {filteredAndSortedItems.length === 0 && (
+        <div className="py-32 text-center space-y-6 bg-white rounded-[4rem] border border-dashed border-slate-200 animate-fadeIn">
+          <div className="w-28 h-28 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-inner">
+            <Search size={48} className="text-slate-200" />
           </div>
-          <div>
-            <h3 className="text-xl font-black text-slate-800">Nenhum material encontrado</h3>
-            <p className="text-slate-500 font-medium max-w-xs mx-auto">Tente ajustar os filtros de fornecedor, data ou categoria para encontrar o que procura.</p>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-black text-slate-900">Nenhum material encontrado</h3>
+            <p className="text-slate-500 font-medium max-w-xs mx-auto">Não encontramos nada com esses filtros. Tente buscar termos mais genéricos ou resetar os filtros.</p>
           </div>
           <button 
             onClick={clearFilters}
-            className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl"
+            className="bg-slate-900 text-white px-10 py-4 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-2xl active:scale-95"
           >
-            Resetar Todos Filtros
+            Resetar Todos os Filtros
           </button>
         </div>
       )}

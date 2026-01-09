@@ -43,18 +43,19 @@ export interface CutHistoryRecord {
   id: string;
   date: string;
   project: string;
+  clientName: string; // Novo campo para busca
   areaUsed: number;
   leftoverWidth: number;
   leftoverHeight: number;
   leftoverPoints?: Point[];
   observations?: string;
-  operatorId: string; // Quem realizou o corte
+  operatorId: string;
   operatorName: string;
 }
 
 export interface InventoryItem {
   id: string;
-  companyId: string; // Isolamento por empresa
+  companyId: string;
   parentItemId?: string;
   category: MaterialCategory;
   commercialName: string;

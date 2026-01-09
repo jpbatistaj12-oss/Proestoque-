@@ -13,6 +13,7 @@ import QRScanner from './pages/QRScanner';
 import HistoryLog from './pages/HistoryLog';
 import TeamManagement from './pages/TeamManagement';
 import Auth from './pages/Auth';
+import ProjectSearch from './pages/ProjectSearch'; // Nova página
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -62,6 +63,8 @@ const App: React.FC = () => {
         return <Dashboard inventory={inventory} onSelectItem={handleSelectItem} />;
       case 'inventory':
         return <InventoryList inventory={inventory} onSelectItem={handleSelectItem} />;
+      case 'projects':
+        return <ProjectSearch inventory={inventory} onSelectItem={handleSelectItem} />;
       case 'add':
         return <AddItem onComplete={() => { refreshInventory(user.companyId); setActiveTab('inventory'); }} />;
       case 'scanner':

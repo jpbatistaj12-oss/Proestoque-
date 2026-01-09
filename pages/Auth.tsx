@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { login, registerCompany } from '../services/storageService';
-import { LogIn, UserPlus, Building2, Mail, User as UserIcon } from 'lucide-react';
+import { LogIn, UserPlus, Building2, Mail, User as UserIcon, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -11,18 +11,21 @@ interface AuthProps {
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isLogin) {
-      const user = login(email);
+      if (!email || !password) return alert('Por favor, preencha e-mail e senha.');
+      const user = login(email, password);
       if (user) onLogin(user);
-      else alert('Usuário não encontrado. Registre sua empresa!');
+      else alert('E-mail ou senha incorretos. Tente novamente ou registre sua empresa.');
     } else {
-      if (!name || !email || !company) return alert('Preencha todos os campos.');
-      const user = registerCompany(name, email, company);
+      if (!name || !email || !company || !password) return alert('Preencha todos os campos obrigatórios.');
+      const user = registerCompany(name, email, company, password);
       onLogin(user);
     }
   };
@@ -50,7 +53,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <input 
                   type="text" 
                   placeholder="Seu Nome Completo"
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold"
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -60,36 +63,59 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <input 
                   type="text" 
                   placeholder="Nome da Marmoraria"
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold"
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
                 />
               </div>
             </>
           )}
+          
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="email" 
               placeholder="E-mail de Acesso"
-              className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold"
+              className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type={showPassword ? "text" : "password"} 
+              placeholder="Sua Senha"
+              className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button 
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+
           <button 
             type="submit"
-            className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-xl active:scale-95 mt-4"
+            className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-xl active:scale-95 mt-4 group"
           >
-            {isLogin ? <LogIn size={20} /> : <UserPlus size={20} />}
-            {isLogin ? 'ENTRAR NO SISTEMA' : 'CRIAR CONTA ADM'}
+            {isLogin ? <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> : <UserPlus size={20} />}
+            {isLogin ? 'ENTRAR' : 'CRIAR CONTA ADM'}
           </button>
         </form>
 
         <div className="text-center pt-4">
           <button 
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setPassword('');
+              setEmail('');
+            }}
             className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"
           >
             {isLogin ? 'Não tem conta? Registre sua empresa' : 'Já possui empresa cadastrada? Entre aqui'}
