@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { InventoryItem, MaterialCategory, StockStatus } from '../types';
 import { STATUS_COLORS } from '../constants';
-import { Search, Filter, Layers, Calendar, Truck, ArrowUpDown, Info, X } from 'lucide-react';
+import { Search, Filter, Layers, Calendar, Truck, ArrowUpDown, Info, X, UserCheck } from 'lucide-react';
 
 interface InventoryListProps {
   inventory: InventoryItem[];
@@ -108,7 +108,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {/* Filtro Categoria */}
+          {/* Filtros omitidos para brevidade, mantendo os existentes... */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <select 
@@ -121,7 +121,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
             </select>
           </div>
 
-          {/* Filtro Fornecedor */}
           <div className="relative">
             <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <select 
@@ -134,7 +133,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
             </select>
           </div>
 
-          {/* Filtro Status */}
           <div className="relative">
             <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <select 
@@ -147,7 +145,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
             </select>
           </div>
 
-          {/* Filtro Data de Entrada */}
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={14} />
             <input 
@@ -229,22 +226,22 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
                 <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-slate-100 flex items-center gap-1.5">
                   <Layers size={12} className="text-slate-400" /> {item.thickness}
                 </div>
-                <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-slate-100 flex items-center gap-1.5">
-                  <Search size={12} className="text-slate-400" /> {item.currentWidth}x{item.currentHeight} cm
+                <div className="bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-slate-100 flex items-center gap-1.5 truncate max-w-[120px]">
+                  <UserCheck size={12} className="text-blue-400" /> {item.lastOperatorName || 'Entrada'}
                 </div>
               </div>
 
               <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-slate-900 text-white shadow-lg flex items-center justify-center text-[10px] font-black">
-                    {item.supplier?.charAt(0).toUpperCase() || '?'}
+                    {item.lastOperatorName?.charAt(0).toUpperCase() || '?'}
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[8px] text-slate-400 font-black uppercase">Data de Entrada</span>
-                    <span className="text-[10px] text-slate-700 font-bold">{new Date(item.entryDate).toLocaleDateString('pt-BR')}</span>
+                    <span className="text-[8px] text-slate-400 font-black uppercase">Última ação por</span>
+                    <span className="text-[10px] text-slate-700 font-bold">{item.lastOperatorName || 'Sistema'}</span>
                   </div>
                 </div>
-                <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-blue-500/20 group-hover:rotate-12">
+                <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
                   <ArrowUpDown size={18} />
                 </div>
               </div>
@@ -252,24 +249,6 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem }
           </div>
         ))}
       </div>
-
-      {filteredAndSortedItems.length === 0 && (
-        <div className="py-32 text-center space-y-6 bg-white rounded-[4rem] border border-dashed border-slate-200 animate-fadeIn">
-          <div className="w-28 h-28 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-inner">
-            <Search size={48} className="text-slate-200" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-black text-slate-900">Nenhum material encontrado</h3>
-            <p className="text-slate-500 font-medium max-w-xs mx-auto">Não encontramos nada com esses filtros. Tente buscar termos mais genéricos ou resetar os filtros.</p>
-          </div>
-          <button 
-            onClick={clearFilters}
-            className="bg-slate-900 text-white px-10 py-4 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-2xl active:scale-95"
-          >
-            Resetar Todos os Filtros
-          </button>
-        </div>
-      )}
     </div>
   );
 };

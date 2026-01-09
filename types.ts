@@ -43,7 +43,7 @@ export interface CutHistoryRecord {
   id: string;
   date: string;
   project: string;
-  clientName: string; // Novo campo para busca
+  clientName: string;
   areaUsed: number;
   leftoverWidth: number;
   leftoverHeight: number;
@@ -74,6 +74,10 @@ export interface InventoryItem {
   photos: string[];
   status: StockStatus;
   history: CutHistoryRecord[];
+  // Novos campos de auditoria
+  lastOperatorId?: string;
+  lastOperatorName?: string;
+  lastUpdatedAt?: string;
 }
 
 export interface DashboardStats {

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { InventoryItem, StockStatus, CutHistoryRecord, Point, User } from '../types';
 import { getItemById, saveItem, getCurrentUser } from '../services/storageService';
 import { STATUS_COLORS } from '../constants';
-import { ArrowLeft, Scissors, Printer, Plus, Undo2, MousePointer2, Trash2, Info, Layout, Ruler, Eye, User as UserIcon, Maximize2, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Scissors, Printer, Plus, Undo2, MousePointer2, Trash2, Info, Layout, Ruler, Eye, User as UserIcon, Maximize2, FileText, CheckCircle2, AlertTriangle, UserCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface ItemDetailProps {
@@ -207,7 +207,11 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
       shapePoints: drawingPoints,
       availableArea: Number(currentArea.toFixed(4)),
       status: isFinished ? StockStatus.FINALIZADA : StockStatus.COM_SOBRA,
-      history: [newHistory, ...item.history]
+      history: [newHistory, ...item.history],
+      // Auditoria
+      lastOperatorId: user.id,
+      lastOperatorName: user.name,
+      lastUpdatedAt: new Date().toISOString()
     };
 
     saveItem(updatedItem);
@@ -215,9 +219,6 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
     setShowCutModal(false);
     onUpdate();
   };
-
-  const currentMaxW = drawingPoints.length > 0 ? Math.max(...drawingPoints.map(p => p.x)) : 0;
-  const currentMaxH = drawingPoints.length > 0 ? Math.max(...drawingPoints.map(p => p.y)) : 0;
 
   return (
     <div className="pb-20 animate-fadeIn">
@@ -268,12 +269,15 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                     <p className="font-bold text-blue-600">{item.currentWidth}x{item.currentHeight} cm</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-400 font-black uppercase mb-1">Medidas Originais</p>
-                    <p className="font-bold text-slate-500">{item.originalWidth}x{item.originalHeight} cm</p>
-                  </div>
-                  <div>
                     <p className="text-[10px] text-slate-400 font-black uppercase mb-1">Disponível</p>
                     <p className="font-bold text-green-600">{item.availableArea.toFixed(2)} m²</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-black uppercase mb-1">Responsável</p>
+                    <div className="flex items-center gap-1.5 font-bold text-slate-500">
+                       <UserCheck size={14} className="text-blue-500" />
+                       <span className="truncate max-w-[80px]">{item.lastOperatorName || 'N/A'}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -336,11 +340,14 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                         <div>
                           <h4 className="font-black text-slate-800 text-lg uppercase tracking-tight">{log.project}</h4>
                           <p className="text-xs text-slate-500 font-bold uppercase tracking-tight text-blue-600">Cliente: {log.clientName}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{log.date} • {log.observations}</p>
+                          <div className="flex items-center gap-4 mt-2">
+                             <span className="text-[10px] text-slate-400 flex items-center gap-1"><FileText size={12} /> {log.date}</span>
+                             <span className="text-[10px] text-slate-400 flex items-center gap-1 font-black uppercase text-slate-900"><UserCheck size={12} className="text-blue-500" /> OP: {log.operatorName}</span>
+                          </div>
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-black text-red-500 block">-{log.areaUsed.toFixed(2)} m²</span>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SOBRA: {log.leftoverWidth}x{log.leftoverHeight}cm</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RESTO: {log.leftoverWidth}x{log.leftoverHeight}cm</span>
                         </div>
                       </div>
                     </div>
@@ -362,6 +369,10 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
           <p className="text-xs font-bold text-slate-500 mb-6">{item.commercialName}</p>
           <div className="bg-slate-900 text-white w-full py-4 rounded-2xl font-black text-xl shadow-lg uppercase">
             {item.currentWidth} X {item.currentHeight}
+          </div>
+          <div className="mt-6 pt-6 border-t border-slate-50 w-full">
+            <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Último Operador</p>
+            <p className="text-xs font-black text-slate-800 uppercase">{item.lastOperatorName || 'ENTRADA SISTEMA'}</p>
           </div>
         </div>
       </div>
@@ -400,7 +411,6 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                  </div>
                </div>
                
-               {/* Área do Canvas Profissional */}
                <div className="flex-1 flex items-center justify-center bg-slate-950/40 rounded-[2.5rem] border border-white/5 relative overflow-hidden group shadow-inner">
                  <div className="absolute inset-0 opacity-20 pointer-events-none">
                     <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle, #3b82f6 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
@@ -456,19 +466,13 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                    )}
                  </svg>
                  
-                 {/* HUD de Informação de Chapa */}
                  <div className="absolute top-6 left-6 flex flex-col gap-2">
                     <div className="bg-slate-900/90 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/10 shadow-xl">
-                      <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mb-1">Área Original</p>
-                      <p className="text-white text-xl font-black">{item.currentWidth} <span className="text-[10px] text-slate-500">X</span> {item.currentHeight} <span className="text-[10px] text-slate-500 uppercase ml-1">cm</span></p>
-                    </div>
-                    <div className="bg-slate-900/90 backdrop-blur-md px-5 py-2 rounded-2xl border border-white/10 shadow-xl inline-flex items-center gap-2">
-                       <MousePointer2 size={12} className="text-blue-500" />
-                       <span className="text-[10px] text-slate-300 font-bold uppercase">Clique para adicionar vértices</span>
+                      <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mb-1">Área Disponível</p>
+                      <p className="text-white text-xl font-black">{item.currentWidth} <span className="text-[10px] text-slate-500">X</span> {item.currentHeight}</p>
                     </div>
                  </div>
 
-                 {/* Indicador de Status do Desenho */}
                  <div className="absolute bottom-6 left-6 flex items-center gap-3">
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg ${drawingPoints.length >= 3 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
                       {drawingPoints.length >= 3 ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
@@ -477,11 +481,12 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                  </div>
                </div>
 
-               {/* Ajuste Fino de Lados (Compacto) */}
                <div className="mt-6 bg-slate-950/40 p-5 rounded-[2rem] border border-white/5">
                  <div className="flex justify-between items-center mb-4">
                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Ajuste Fino de Dimensões (cm)</span>
-                   <span className="bg-blue-600/10 text-blue-500 text-[9px] px-3 py-1 rounded-full font-black uppercase border border-blue-500/20">{drawingPoints.length} Segmentos</span>
+                   <div className="flex items-center gap-2 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                      <UserCheck size={12} className="text-blue-500" /> Operador: {user?.name}
+                   </div>
                  </div>
                  <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
                     {drawingPoints.length > 1 ? drawingPoints.map((p, idx) => {
@@ -490,8 +495,7 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                       return (
                         <div key={idx} className="shrink-0 bg-slate-900/80 p-3 rounded-2xl border border-white/5 min-w-[120px] transition-all hover:border-blue-500/50">
                           <div className="flex items-center justify-between mb-2">
-                             <span className="text-[8px] text-slate-500 font-black uppercase">Segmento {idx+1}</span>
-                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                             <span className="text-[8px] text-slate-500 font-black uppercase">Lado {idx+1}</span>
                           </div>
                           <input 
                             type="number" 
@@ -502,98 +506,79 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                         </div>
                       );
                     }) : (
-                      <p className="text-slate-600 text-[10px] font-bold uppercase italic py-4">Inicie o desenho para ver as dimensões dos lados...</p>
+                      <p className="text-slate-600 text-[10px] font-bold uppercase italic py-4">Inicie o desenho para ver as dimensões...</p>
                     )}
                  </div>
                </div>
             </div>
 
-            {/* 2. PAINEL DE CONTROLE E DADOS (SIDEBAR) */}
             <div className="lg:w-[38%] p-6 sm:p-10 flex flex-col justify-between overflow-y-auto bg-slate-50">
               <div className="space-y-8">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter">Registro de Corte</h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Dados de Rastreabilidade</p>
+                    <h3 className="text-3xl font-black text-slate-900 tracking-tighter">Registrar Corte</h3>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Responsável: {user?.name}</p>
                   </div>
                   <button 
                     onClick={() => setShowCutModal(false)} 
-                    className="text-slate-400 hover:text-slate-900 p-3 bg-white rounded-2xl transition-all border border-slate-200 shadow-sm hover:shadow-md"
+                    className="text-slate-400 hover:text-slate-900 p-3 bg-white rounded-2xl transition-all border border-slate-200 shadow-sm"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                {/* Card de Impacto em Estoque */}
                 <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
                    <div className="flex items-center gap-3 text-slate-900 font-black text-xs uppercase tracking-tight border-b border-slate-50 pb-4">
                      <div className="bg-emerald-500 p-1.5 rounded-lg">
                         <Maximize2 size={14} className="text-white" />
                      </div>
-                     Aproveitamento Estimado
+                     Impacto no Estoque
                    </div>
 
                    <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1">
-                        <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Sobra Resultante</p>
+                        <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Área da Sobra</p>
                         <p className="text-3xl font-black text-slate-900 tracking-tighter">
                           {currentArea.toFixed(3)}<span className="text-sm font-bold text-slate-400 ml-1">m²</span>
                         </p>
                       </div>
                       <div className="space-y-1 border-l border-slate-50 pl-6">
-                        <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Área Utilizada</p>
+                        <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Peça Cortada</p>
                         <p className="text-3xl font-black text-slate-900 tracking-tighter">
                           {areaUsed.toFixed(3)}<span className="text-sm font-bold text-slate-400 ml-1">m²</span>
                         </p>
                       </div>
                    </div>
-
-                   <div className="relative pt-2">
-                      <ShapeRenderer 
-                          points={drawingPoints} 
-                          containerW={340} 
-                          containerH={180}
-                          originalW={item.currentWidth}
-                          originalH={item.currentHeight}
-                          highlightColor="#10b981"
-                          showMeasurements
-                          className="!bg-slate-50 !border-slate-100 !shadow-inner !p-2"
-                      />
-                      <div className="absolute top-4 right-4 bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase shadow-lg border border-emerald-500/20">
-                         Layout da Sobra
-                      </div>
-                   </div>
                 </div>
 
-                {/* Formulário de Dados de Projeto */}
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 text-slate-900 font-black text-xs uppercase tracking-tight mb-2">
                      <FileText size={18} className="text-blue-500" />
-                     Dados do Projeto
+                     Dados do Destino
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2 group">
-                      <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 group-focus-within:text-blue-500 transition-colors">
-                        <UserIcon size={12} /> Cliente Final
+                      <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                        <UserIcon size={12} /> Cliente / Obra
                       </label>
                       <input 
                         type="text" 
-                        placeholder="Nome do Cliente / Obra"
-                        className="w-full p-5 bg-white border border-slate-200 rounded-3xl focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all font-bold text-slate-800 outline-none"
+                        placeholder="Nome do Cliente"
+                        className="w-full p-5 bg-white border border-slate-200 rounded-3xl font-bold text-slate-800 outline-none focus:border-blue-500 transition-all"
                         value={cutClientName}
                         onChange={(e) => setCutClientName(e.target.value)}
                       />
                     </div>
 
                     <div className="space-y-2 group">
-                      <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 group-focus-within:text-blue-500 transition-colors">
-                        <Layout size={12} /> Descrição do Serviço
+                      <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                        <Layout size={12} /> Descrição da Peça
                       </label>
                       <input 
                         type="text" 
-                        placeholder="Ex: Bancada Banheiro Social"
-                        className="w-full p-5 bg-white border border-slate-200 rounded-3xl focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all font-bold text-slate-800 outline-none"
+                        placeholder="Ex: Saia da Bancada Cozinha"
+                        className="w-full p-5 bg-white border border-slate-200 rounded-3xl font-bold text-slate-800 outline-none focus:border-blue-500 transition-all"
                         value={cutProject}
                         onChange={(e) => setCutProject(e.target.value)}
                       />
@@ -602,41 +587,28 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                 </div>
               </div>
 
-              {/* Ação Principal */}
               <div className="mt-10 pt-8 border-t border-slate-200/60">
                 <button 
                   onClick={handleRegisterCut}
                   disabled={drawingPoints.length < 3 || !cutProject || !cutClientName}
-                  className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 hover:bg-emerald-600 hover:scale-[1.02] transition-all shadow-2xl disabled:opacity-20 disabled:grayscale disabled:pointer-events-none active:scale-95 group relative overflow-hidden"
+                  className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 hover:bg-emerald-600 transition-all shadow-2xl disabled:opacity-20 active:scale-95 group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
-                  <CheckCircle2 size={26} className="group-hover:scale-110 transition-transform" />
+                  <CheckCircle2 size={26} />
                   CONFIRMAR PRODUÇÃO
                 </button>
                 <div className="mt-4 flex items-center justify-center gap-2 text-slate-400">
-                  <Info size={14} />
-                  <p className="text-[10px] font-bold uppercase tracking-widest">O material atualizado será salvo automaticamente</p>
+                  <UserCheck size={14} className="text-blue-500" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest">Registrando como: {user?.name}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
       )}
-
-      {/* Estilo Auxiliar */}
-      <style>{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 1.5s infinite;
-        }
-      `}</style>
     </div>
   );
 };
 
-// Componente X customizado (o Lucide original pode ter problemas de importação em alguns contextos dependendo da versão)
 const X = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
