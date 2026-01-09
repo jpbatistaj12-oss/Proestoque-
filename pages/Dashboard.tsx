@@ -22,7 +22,8 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem }) => {
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ 
     name, 
-    value: Number(value.toFixed(2)) 
+    // Fix: Explicitly cast value as number to resolve 'unknown' type error when calling toFixed
+    value: Number((value as number).toFixed(2)) 
   }));
 
   const recentItems = [...inventory]
