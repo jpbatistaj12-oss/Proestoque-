@@ -16,6 +16,7 @@ import TeamManagement from './pages/TeamManagement';
 import Auth from './pages/Auth';
 import ProjectSearch from './pages/ProjectSearch';
 import PlatformManagement from './pages/PlatformManagement';
+import SupportBot from './components/SupportBot';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -23,7 +24,6 @@ const App: React.FC = () => {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   
-  // Estado para quando o Super Admin acessa uma empresa
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,7 +31,6 @@ const App: React.FC = () => {
     if (sessionUser) {
       setUser(sessionUser);
       refreshInventory(impersonatedCompanyId || sessionUser.companyId);
-      // Só redireciona se for Super Admin na aba estoque e NÃO estiver visualizando um cliente
       if (sessionUser.role === UserRole.SUPER_ADMIN && activeTab === 'inventory' && !impersonatedCompanyId) {
         setActiveTab('platform');
       }
@@ -64,14 +63,18 @@ const App: React.FC = () => {
   };
 
   if (!user) {
-    return <Auth onLogin={(u) => { 
-      setUser(u); 
-      refreshInventory(u.companyId); 
-      if (u.role === UserRole.SUPER_ADMIN) setActiveTab('platform');
-    }} />;
+    return (
+      <>
+        <Auth onLogin={(u) => { 
+          setUser(u); 
+          refreshInventory(u.companyId); 
+          if (u.role === UserRole.SUPER_ADMIN) setActiveTab('platform');
+        }} />
+        <SupportBot />
+      </>
+    );
   }
 
-  // Define qual ID de empresa usar para carregar dados
   const currentCompanyId = impersonatedCompanyId || user.companyId;
   const impersonatedCompanyName = impersonatedCompanyId ? getAllCompanies().find(c => c.id === impersonatedCompanyId)?.name : null;
 
@@ -109,7 +112,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Se estiver impersonando, mostra menus de ADMIN mesmo sendo SUPER_ADMIN
   const filteredNav = NAV_ITEMS.filter(item => {
     if (impersonatedCompanyId && item.roles.includes('ADMIN')) return true;
     return item.roles.includes(user.role);
@@ -131,7 +133,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden">
-      {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-64 bg-[#1E293B] flex-col shrink-0 border-r border-slate-200">
         <div className="p-6 flex items-center gap-3">
           <div className="bg-[#334155] p-2 rounded-lg text-white">
@@ -177,7 +178,6 @@ const App: React.FC = () => {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header desktop */}
         <header className="hidden md:flex h-20 items-center justify-between px-8 bg-white border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-6">
             <div>
@@ -208,12 +208,6 @@ const App: React.FC = () => {
           <button onClick={handleLogout} className="p-2 bg-slate-800 rounded-lg"><LogOut size={18} /></button>
         </header>
 
-        {impersonatedCompanyId && (
-           <div className="md:hidden bg-amber-500 text-white text-[10px] font-black uppercase p-2 text-center tracking-widest">
-             Unidade: {impersonatedCompanyName} | <button onClick={stopImpersonating} className="underline">Sair</button>
-           </div>
-        )}
-
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           {renderContent()}
         </main>
@@ -231,6 +225,7 @@ const App: React.FC = () => {
           ))}
         </nav>
       </div>
+      <SupportBot />
     </div>
   );
 };

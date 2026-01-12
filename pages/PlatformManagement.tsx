@@ -5,7 +5,8 @@ import { getAllCompanies, updateCompanyStatus, getTeamMembers, getInventory, cre
 import { 
   ShieldCheck, ShieldAlert, Users, Package, TrendingUp, Search, Calendar, 
   CheckCircle2, Lock, Unlock, UserPlus, X, LogIn, ExternalLink, AlertCircle,
-  DollarSign, BarChart3, Wallet, ArrowUpRight, Key, Eye, Copy, Check
+  DollarSign, BarChart3, Wallet, ArrowUpRight, Key, Eye, Copy, Check, MessageSquareText,
+  Headphones, History, Bot
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -18,7 +19,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'geral' | 'financeiro'>('geral');
+  const [activeTab, setActiveTab] = useState<'geral' | 'financeiro' | 'suporte'>('geral');
   
   // Modal de Credenciais
   const [showCredsModal, setShowCredsModal] = useState(false);
@@ -109,18 +110,24 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
           <p className="text-slate-500 font-bold text-sm uppercase tracking-widest">Painel de Controle da Plataforma</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <div className="flex bg-slate-200 p-1 rounded-2xl">
+          <div className="flex bg-slate-200 p-1.5 rounded-2xl overflow-x-auto scrollbar-hide">
              <button 
                onClick={() => setActiveTab('geral')}
-               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'geral' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'geral' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
              >
                Clientes
              </button>
              <button 
                onClick={() => setActiveTab('financeiro')}
-               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'financeiro' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'financeiro' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
              >
                Financeiro
+             </button>
+             <button 
+               onClick={() => setActiveTab('suporte')}
+               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'suporte' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+             >
+               Suporte Central
              </button>
           </div>
           <button 
@@ -138,7 +145,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         <StatCard label="Ativos/Bloqueados" value={`${activeCompanies} / ${companies.length - activeCompanies}`} icon={<ShieldAlert size={20} />} color="text-slate-600" bg="bg-slate-100" />
       </div>
 
-      {activeTab === 'geral' ? (
+      {activeTab === 'geral' && (
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
           <div className="relative mb-8">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
@@ -217,7 +224,9 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
             </table>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'financeiro' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
            <div className="lg:col-span-8 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
               <div className="flex justify-between items-center mb-8">
@@ -277,16 +286,103 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                   </div>
                 ))}
               </div>
-              <div className="mt-8 pt-6 border-t border-slate-50">
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-center leading-relaxed">
-                   Os valores alterados impactam<br/>diretamente o MRR global do próximo mês.
-                 </p>
+           </div>
+        </div>
+      )}
+
+      {activeTab === 'suporte' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+           <div className="lg:col-span-8 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+              <div className="flex justify-between items-center">
+                 <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                       <Headphones size={24} className="text-blue-600" /> Central de Atendimento
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Chamados em aberto e interações de clientes</p>
+                 </div>
+                 <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <button className="px-4 py-2 bg-white text-slate-900 rounded-lg text-[10px] font-black uppercase shadow-sm">Pendentes (2)</button>
+                    <button className="px-4 py-2 text-slate-400 rounded-lg text-[10px] font-black uppercase">Finalizados</button>
+                 </div>
+              </div>
+
+              <div className="space-y-6">
+                 {/* Simulação de Tickets */}
+                 {[
+                   { id: 'TKT-991', client: 'Marmoraria Premium', msg: 'Não consigo gerar o QR Code da chapa CHP-881.', time: '14:20', type: 'IA Respondeu' },
+                   { id: 'TKT-992', client: 'Arte em Pedras', msg: 'Gostaria de saber como exportar meu relatório mensal.', time: '15:10', type: 'Aguardando Humano' }
+                 ].map(ticket => (
+                    <div key={ticket.id} className="p-6 bg-slate-50 border border-slate-100 rounded-[2rem] hover:bg-white hover:shadow-xl transition-all cursor-pointer group">
+                       <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black text-xs">{ticket.client.charAt(0)}</div>
+                             <div>
+                                <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{ticket.client}</p>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{ticket.id} • {ticket.time}</p>
+                             </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${ticket.type === 'IA Respondeu' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
+                             {ticket.type}
+                          </span>
+                       </div>
+                       <p className="text-sm font-medium text-slate-600 pl-1">"{ticket.msg}"</p>
+                       <div className="mt-6 pt-4 border-t border-slate-200/50 flex justify-between items-center">
+                          <div className="flex items-center gap-2 text-blue-600 text-[10px] font-black uppercase tracking-widest">
+                             <MessageSquareText size={14} /> Responder Agora
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-400 text-[9px] font-black uppercase tracking-widest">
+                             <History size={12} /> Ver Histórico
+                          </div>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+
+           <div className="lg:col-span-4 space-y-6">
+              <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white space-y-6">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                       <Bot size={24} />
+                    </div>
+                    <div>
+                       <h4 className="font-black text-lg uppercase tracking-tight leading-none">Marmobot Status</h4>
+                       <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-2">IA Gemini Flash 2.5</p>
+                    </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/10 p-4 rounded-2xl border border-white/5">
+                       <p className="text-[8px] text-white/40 font-black uppercase tracking-widest">Respostas IA</p>
+                       <p className="text-2xl font-black mt-1">1.240</p>
+                    </div>
+                    <div className="bg-white/10 p-4 rounded-2xl border border-white/5">
+                       <p className="text-[8px] text-white/40 font-black uppercase tracking-widest">Precisão</p>
+                       <p className="text-2xl font-black mt-1">94%</p>
+                    </div>
+                 </div>
+                 <button className="w-full bg-white text-slate-900 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-600 hover:text-white transition-all">Configurar Treinamento</button>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center space-y-4">
+                 <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                    <Headphones size={28} />
+                 </div>
+                 <h4 className="text-slate-900 font-black uppercase tracking-tight">SLA de Atendimento</h4>
+                 <div className="space-y-3">
+                    <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                       <span>Primeira Resposta</span>
+                       <span className="text-slate-900 font-black">12 min</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                       <div className="w-4/5 h-full bg-blue-600"></div>
+                    </div>
+                 </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* Modal de Credenciais */}
+      {/* Modais omitidos para brevidade (ShowCredsModal e ShowAddModal permanecem iguais) */}
       {showCredsModal && selectedCreds && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[210] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-md:max-w-xs max-w-md p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
@@ -299,7 +395,6 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                 <X size={24} />
               </button>
             </div>
-
             <div className="space-y-6">
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-5">
                  <div className="space-y-1.5">
@@ -311,7 +406,6 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                        </button>
                     </div>
                  </div>
-
                  <div className="space-y-1.5">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha do Cliente</p>
                     <div className="flex justify-between items-center bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
@@ -322,20 +416,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                     </div>
                  </div>
               </div>
-
-              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                 <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-                 <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed tracking-tight">
-                   Confirme se o cliente está digitando exatamente o e-mail acima, sem espaços extras.
-                 </p>
-              </div>
-
-              <button 
-                onClick={() => setShowCredsModal(false)}
-                className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-600 transition-all active:scale-95"
-              >
-                Entendido
-              </button>
+              <button onClick={() => setShowCredsModal(false)} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-600 transition-all active:scale-95">Entendido</button>
             </div>
           </div>
         </div>
@@ -348,14 +429,12 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
               <h3 className="text-2xl font-black text-slate-900 tracking-tight">Novo Cadastro de Cliente</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-900 p-2 rounded-full hover:bg-slate-100"><X size={24} /></button>
             </div>
-            
             {errorMessage && (
               <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-3 animate-shake">
                 <AlertCircle size={20} />
                 <span className="text-xs font-black uppercase tracking-widest">{errorMessage}</span>
               </div>
             )}
-
             <form onSubmit={handleCreateAccount} className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-1">

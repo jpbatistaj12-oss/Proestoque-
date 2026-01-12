@@ -5,6 +5,7 @@ export interface StoredUser extends User {
   password?: string;
 }
 
+// Chaves globais consistentes
 const KEYS = {
   INVENTORY: 'marm_inventory_v2',
   USERS: 'marm_users_v2',
@@ -12,6 +13,9 @@ const KEYS = {
   SESSION: 'marm_active_session'
 };
 
+/**
+ * Normaliza e-mails: remove todos os espaços e coloca tudo em minúsculo.
+ */
 const normalizeEmail = (email: string | undefined): string => {
   if (!email) return '';
   return email.trim().toLowerCase();
@@ -26,7 +30,7 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
   const cleanEmail = normalizeEmail(email);
   const cleanPassword = (password || '').trim();
   
-  // 1. Login Especial Super Admin
+  // 1. Login Super Admin da Plataforma
   if (cleanEmail === 'admin@marmoraria.control' && cleanPassword === 'marm@2025') {
     const superAdmin: User = {
       id: 'SUPER-001',
@@ -41,41 +45,53 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
 
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   
-  // 2. BUSCA GLOBAL (Ignora a aba selecionada por um instante para achar o usuário)
-  const foundUser = users.find(u => normalizeEmail(u.email) === cleanEmail);
+  // 2. BUSCA GLOBAL (Encontra o usuário independente da aba selecionada)
+  const user = users.find(u => normalizeEmail(u.email) === cleanEmail);
   
-  if (!foundUser) {
-    throw new Error("E-MAIL NÃO ENCONTRADO. Verifique se o cadastro foi feito corretamente.");
+  if (!user) {
+    // DIAGNÓSTICO PARA O USUÁRIO (Console F12)
+    console.group("DIAGNÓSTICO DE ACESSO");
+    console.warn("E-mail digitado:", `[${cleanEmail}]`);
+    console.log("Base de dados atual:");
+    console.table(users.map(u => ({ nome: u.name, e_mail: u.email, cargo: u.role, senha: u.password })));
+    console.groupEnd();
+    
+    throw new Error("E-MAIL NÃO ENCONTRADO. Certifique-se de que o cadastro foi feito corretamente no menu 'Equipe'.");
   }
 
-  // 3. VALIDAÇÃO DE ABA (Verifica se o papel do usuário bate com a aba selecionada)
-  if (preferredRole && foundUser.role !== preferredRole && foundUser.role !== UserRole.SUPER_ADMIN) {
-    const targetLabel = preferredRole === UserRole.ADMIN ? 'Administrador' : 'Colaborador';
-    const actualLabel = foundUser.role === UserRole.ADMIN ? 'Administrador' : 'Colaborador';
-    throw new Error(`PERFIL INCORRETO. Este e-mail é de um ${actualLabel}. Por favor, mude para a aba "${actualLabel}" acima.`);
+  // 3. VALIDAÇÃO DE PERFIL (Verifica se está na aba correta: Admin vs Operador)
+  if (preferredRole && user.role !== preferredRole && user.role !== UserRole.SUPER_ADMIN) {
+    const roleDigitada = preferredRole === UserRole.ADMIN ? 'ADMINISTRADOR' : 'COLABORADOR';
+    const roleReal = user.role === UserRole.ADMIN ? 'ADMINISTRADOR' : 'COLABORADOR';
+    throw new Error(`PERFIL INCORRETO. Este e-mail é de um ${roleReal}. Selecione a aba "${roleReal}" acima.`);
   }
 
   // 4. VALIDAÇÃO DE SENHA
-  if (foundUser.password !== cleanPassword) {
+  if (user.password !== cleanPassword) {
     throw new Error("SENHA INCORRETA. Verifique maiúsculas e minúsculas.");
   }
 
-  // 5. VALIDAÇÃO DE STATUS DA EMPRESA
+  // 5. VALIDAÇÃO DE EMPRESA
   const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
-  const company = companies.find(c => c.id === foundUser.companyId);
+  const company = companies.find(c => c.id === user.companyId);
 
-  if (!company && foundUser.role !== UserRole.SUPER_ADMIN) {
-    throw new Error("EMPRESA NÃO ENCONTRADA.");
+  if (!company && user.role !== UserRole.SUPER_ADMIN) {
+    throw new Error("EMPRESA NÃO VINCULADA. Contate o suporte.");
   }
 
   if (company && company.status === CompanyStatus.SUSPENDED) {
-    throw new Error("ACESSO SUSPENSO. Verifique com a administração.");
+    throw new Error("ACESSO SUSPENSO. Verifique sua assinatura.");
   }
 
-  // Sucesso
-  const { password: _, ...userWithoutPassword } = foundUser;
+  // Login realizado com sucesso
+  const { password: _, ...userWithoutPassword } = user;
   localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
   return userWithoutPassword;
+};
+
+export const getTeamMembers = (companyId: string): StoredUser[] => {
+  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  return users.filter(u => u.companyId === companyId);
 };
 
 export const addTeamMember = (name: string, email: string, role: UserRole, companyId: string, password?: string): void => {
@@ -83,19 +99,37 @@ export const addTeamMember = (name: string, email: string, role: UserRole, compa
   const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   
   if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
-    throw new Error("Este e-mail já está sendo usado.");
+    throw new Error("E-mail já está em uso por outro colaborador.");
   }
 
   const newUser: StoredUser = {
     id: `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
     name: name.trim(), 
     email: cleanEmail, 
-    role, // Pode ser ADMIN ou OPERATOR dependendo do que o dono escolher
+    role, 
     companyId, 
     password: (password || 'marm123').trim()
   };
   users.push(newUser);
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+};
+
+export const updateTeamMemberCredentials = (userId: string, companyId: string, updates: Partial<StoredUser>): void => {
+  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  const index = users.findIndex(u => u.id === userId && u.companyId === companyId);
+  
+  if (index >= 0) {
+    if (updates.email) {
+      const cleanEmail = normalizeEmail(updates.email);
+      if (users.some((u, i) => i !== index && normalizeEmail(u.email) === cleanEmail)) {
+        throw new Error("Este novo e-mail já está em uso.");
+      }
+      updates.email = cleanEmail;
+    }
+    
+    users[index] = { ...users[index], ...updates };
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+  }
 };
 
 export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
@@ -123,28 +157,13 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
     id: adminId, 
     name: adminName.trim(), 
     email: cleanEmail, 
-    role: UserRole.ADMIN, // Clientes do Super Admin são sempre ADMINS
+    role: UserRole.ADMIN, 
     companyId, 
     password: (password || 'joao123').trim() 
   });
   
   localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-};
-
-export const getTeamMembers = (companyId: string): StoredUser[] => {
-  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  return users.filter(u => u.companyId === companyId);
-};
-
-export const updateTeamMemberCredentials = (userId: string, companyId: string, updates: Partial<StoredUser>): void => {
-  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  const index = users.findIndex(u => u.id === userId && u.companyId === companyId);
-  if (index >= 0) {
-    if (updates.email) updates.email = normalizeEmail(updates.email);
-    users[index] = { ...users[index], ...updates };
-    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-  }
 };
 
 export const deleteTeamMember = (userId: string, companyId: string): void => {

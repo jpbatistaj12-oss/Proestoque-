@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { login } from '../services/storageService';
-import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle, Shield, HardHat, Search, X } from 'lucide-react';
+import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle, Shield, HardHat, Info } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -15,29 +15,36 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeRole, setActiveRole] = useState<UserRole>(UserRole.ADMIN);
-  const [showHelp, setShowHelp] = useState(false);
+
+  const handleRoleChange = (role: UserRole) => {
+    setActiveRole(role);
+    setError(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    // Normalização instantânea no submit
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    if (!cleanEmail || !cleanPass) {
+      setLoading(false);
+      return setError('Preencha seu e-mail e sua senha.');
+    }
+
     try {
-      const user = login(email, password, activeRole);
+      const user = login(cleanEmail, cleanPass, activeRole);
       if (user) {
         onLogin(user);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Falha na autenticação.');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Ajuda de diagnóstico (Apenas para ambiente de teste)
-  const getStoredAccounts = () => {
-    const users = JSON.parse(localStorage.getItem('marm_users_v2') || '[]');
-    return users;
   };
 
   return (
@@ -55,18 +62,18 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </p>
         </div>
 
-        {/* Seletor de Perfil Corrigido */}
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1">
+        {/* Seletor de Perfil (Administrador vs Operador) */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
            <button 
              type="button"
-             onClick={() => { setActiveRole(UserRole.ADMIN); setError(null); }}
+             onClick={() => handleRoleChange(UserRole.ADMIN)}
              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.ADMIN ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
            >
-             <Shield size={14} /> Proprietário / ADM
+             <Shield size={14} /> Administrador
            </button>
            <button 
              type="button"
-             onClick={() => { setActiveRole(UserRole.OPERATOR); setError(null); }}
+             onClick={() => handleRoleChange(UserRole.OPERATOR)}
              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.OPERATOR ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
            >
              <HardHat size={14} /> Colaborador
@@ -124,7 +131,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <button 
             type="submit"
             disabled={loading}
-            className={`w-full bg-slate-900 text-white py-5.5 rounded-[2rem] font-black flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 mt-6 uppercase tracking-widest text-sm ${loading ? 'opacity-50' : 'hover:bg-blue-600'}`}
+            className={`w-full bg-slate-900 text-white py-5.5 rounded-[2rem] font-black flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 mt-6 uppercase tracking-widest text-sm ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -135,48 +142,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         </form>
 
         <div className="text-center pt-2">
-           <button 
-             onClick={() => setShowHelp(true)}
-             className="text-[10px] text-slate-400 font-black uppercase tracking-widest hover:text-blue-600 transition-all flex items-center justify-center gap-2 mx-auto"
-           >
-             <Search size={12} /> Ajuda com Acesso
-           </button>
-        </div>
-      </div>
-
-      {/* Modal de Ajuda Diagnóstica */}
-      {showHelp && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-           <div className="bg-white rounded-[3rem] w-full max-w-md p-8 sm:p-10 shadow-2xl space-y-6 relative animate-popIn">
-              <button onClick={() => setShowHelp(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full text-slate-400 hover:text-red-500 transition-all"><X size={20} /></button>
-              <div className="text-center space-y-1">
-                 <h3 className="text-xl font-black text-slate-900 uppercase">Diagnóstico de Contas</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Contas registradas neste navegador</p>
-              </div>
-
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                 {getStoredAccounts().length > 0 ? getStoredAccounts().map((acc: any, i: number) => (
-                    <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                       <p className="text-[11px] font-black text-slate-900 uppercase">{acc.name}</p>
-                       <p className="text-[10px] text-blue-600 font-bold">{acc.email}</p>
-                       <div className="flex justify-between items-center mt-2 border-t border-slate-200 pt-2">
-                          <span className="text-[8px] font-black uppercase bg-slate-200 px-2 py-0.5 rounded text-slate-600">{acc.role === 'ADMIN' ? 'Proprietário' : 'Colaborador'}</span>
-                          <span className="text-[8px] font-black text-slate-400">Senha: {acc.password}</span>
-                       </div>
-                    </div>
-                 )) : (
-                    <p className="text-center py-10 text-slate-400 italic text-xs">Nenhuma conta encontrada na memória.</p>
-                 )}
-              </div>
-
-              <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
-                 <p className="text-[9px] text-amber-700 font-bold uppercase text-center leading-relaxed">
-                   Se sua conta não aparece aqui, você precisa cadastrá-la no Painel Global (Super Admin) ou seu chefe precisa te cadastrar em "Equipe".
-                 </p>
-              </div>
+           <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+             <Info size={12} className="text-blue-500" />
+             <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest">
+               Esqueceu o e-mail? Consulte o Adm da Marmoraria.
+             </p>
            </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
