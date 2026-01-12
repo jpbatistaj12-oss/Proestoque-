@@ -16,27 +16,32 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [activeRole, setActiveRole] = useState<UserRole>(UserRole.ADMIN);
 
+  const handleRoleChange = (role: UserRole) => {
+    setActiveRole(role);
+    setError(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    // Normalização instantânea no submit para garantir segurança total
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    if (!cleanEmail || !cleanPass) {
+      setLoading(false);
+      return setError('Preencha seu e-mail e sua senha.');
+    }
+
     try {
-      // Normalização rigorosa no momento do envio
-      const cleanEmail = email.trim().toLowerCase();
-      const cleanPass = password.trim();
-      
-      if (!cleanEmail || !cleanPass) {
-        setLoading(false);
-        return setError('E-mail e senha são obrigatórios.');
-      }
-      
       const user = login(cleanEmail, cleanPass, activeRole);
       if (user) {
         onLogin(user);
       }
     } catch (err: any) {
-      setError(err.message || 'Erro de autenticação.');
+      setError(err.message || 'Falha na autenticação.');
     } finally {
       setLoading(false);
     }
@@ -61,14 +66,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
            <button 
              type="button"
-             onClick={() => { setActiveRole(UserRole.ADMIN); setError(null); }}
+             onClick={() => handleRoleChange(UserRole.ADMIN)}
              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.ADMIN ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
            >
              <Shield size={14} /> Administrador
            </button>
            <button 
              type="button"
-             onClick={() => { setActiveRole(UserRole.OPERATOR); setError(null); }}
+             onClick={() => handleRoleChange(UserRole.OPERATOR)}
              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.OPERATOR ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
            >
              <HardHat size={14} /> Colaborador
@@ -79,7 +84,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="p-5 bg-red-50 border border-red-100 text-red-600 rounded-3xl flex items-start gap-4 animate-shake">
             <AlertCircle className="shrink-0 mt-0.5" size={20} />
             <div className="space-y-1">
-               <p className="text-[10px] font-black uppercase tracking-widest">Atenção</p>
+               <p className="text-[10px] font-black uppercase tracking-widest">Erro de Acesso</p>
                <p className="text-[11px] font-bold leading-relaxed">{error}</p>
             </div>
           </div>
@@ -95,9 +100,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 placeholder="exemplo@gmail.com"
                 className="w-full pl-12 pr-4 py-4.5 bg-slate-50 border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value.toLowerCase())}
                 disabled={loading}
                 autoComplete="email"
+                autoCapitalize="none"
               />
             </div>
           </div>
@@ -142,7 +148,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
              <Info size={12} className="text-blue-500" />
              <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest">
-               Problemas? Clique em F12 {'>'} Console para Conferência.
+               Esqueceu o e-mail? Consulte o Adm da Marmoraria.
              </p>
            </div>
         </div>
