@@ -6,9 +6,9 @@ import {
   ShieldCheck, ShieldAlert, Users, Package, TrendingUp, Search, Calendar, 
   CheckCircle2, Lock, Unlock, UserPlus, X, LogIn, ExternalLink, AlertCircle,
   DollarSign, BarChart3, Wallet, ArrowUpRight, Key, Eye, Copy, Check, MessageSquareText,
-  Headphones, History, Bot
+  Headphones, History, Bot, Activity, Globe, Zap, ArrowRight
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 interface PlatformManagementProps {
   onImpersonate: (companyId: string) => void;
@@ -18,8 +18,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'geral' | 'financeiro' | 'suporte'>('geral');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'financeiro'>('dashboard');
   
   // Modal de Credenciais
   const [showCredsModal, setShowCredsModal] = useState(false);
@@ -30,33 +29,55 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newCompany, setNewCompany] = useState('');
-  const [newPass, setNewPass] = useState('');
 
   useEffect(() => {
     setCompanies(getAllCompanies());
   }, []);
 
-  const handleToggleStatus = (companyId: string, currentStatus: CompanyStatus) => {
-    const newStatus = currentStatus === CompanyStatus.ACTIVE ? CompanyStatus.SUSPENDED : CompanyStatus.ACTIVE;
-    updateCompanyStatus(companyId, newStatus);
+  const totalRevenue = companies.reduce((acc, c) => acc + (c.monthlyFee || 0), 0);
+  const totalSlabs = companies.reduce((acc, c) => acc + getInventory(c.id).length, 0);
+  const totalUsers = companies.reduce((acc, c) => acc + getTeamMembers(c.id).length, 0);
+
+  const statsData = [
+    { name: 'Jan', revenue: totalRevenue * 0.7, clients: 12 },
+    { name: 'Fev', revenue: totalRevenue * 0.8, clients: 15 },
+    { name: 'Mar', revenue: totalRevenue * 0.85, clients: 18 },
+    { name: 'Abr', revenue: totalRevenue * 0.95, clients: 22 },
+    { name: 'Mai', revenue: totalRevenue, clients: companies.length },
+  ];
+
+  const handleCreateAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName || !newEmail || !newCompany) return;
+    createCompanyAccount(newName, cleanEmail(newEmail), newCompany);
     setCompanies(getAllCompanies());
+    setShowAddModal(false);
+    resetForm();
   };
 
-  const handleUpdateFee = (companyId: string, fee: number) => {
-    updateCompanyFee(companyId, fee);
-    setCompanies(getAllCompanies());
-  };
-
+  // Fix: Adicionado handler para exibir as credenciais de uma empresa
   const handleShowCredentials = (company: Company) => {
     const creds = getCompanyAdminCredentials(company.id);
     if (creds) {
       setSelectedCreds(creds);
       setSelectedCompanyName(company.name);
       setShowCredsModal(true);
-      setCopiedField(null);
     } else {
-      alert("Credenciais de administrador não encontradas para esta empresa.");
+      alert("Credenciais administrativas não encontradas para esta unidade.");
     }
+  };
+
+  // Fix: Adicionado handler para alternar o status de ativação de uma empresa
+  const handleToggleStatus = (companyId: string, currentStatus: CompanyStatus) => {
+    const newStatus = currentStatus === CompanyStatus.ACTIVE ? CompanyStatus.SUSPENDED : CompanyStatus.ACTIVE;
+    updateCompanyStatus(companyId, newStatus);
+    setCompanies(getAllCompanies());
+  };
+
+  const cleanEmail = (email: string) => email.trim().toLowerCase();
+
+  const resetForm = () => {
+    setNewName(''); setNewEmail(''); setNewCompany('');
   };
 
   const copyToClipboard = (text: string, field: string) => {
@@ -65,341 +86,193 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleCreateAccount = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    
-    const cleanName = newName.trim();
-    const cleanEmail = newEmail.trim();
-    const cleanCompany = newCompany.trim();
-    const cleanPass = newPass.trim();
-
-    if (!cleanName || !cleanEmail || !cleanCompany) return alert("Preencha os campos essenciais.");
-    
-    try {
-      createCompanyAccount(cleanName, cleanEmail, cleanCompany, cleanPass || undefined);
-      setCompanies(getAllCompanies());
-      setShowAddModal(false);
-      setNewName(''); setNewEmail(''); setNewCompany(''); setNewPass('');
-      alert("Conta criada com sucesso! Verifique os dados de acesso clicando no ícone de chave na lista.");
-    } catch (err: any) {
-      setErrorMessage(err.message);
-    }
-  };
-
-  const filteredCompanies = companies.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalRevenue = companies.reduce((acc, c) => acc + (c.monthlyFee || 0), 0);
-  const activeCompanies = companies.filter(c => c.status === CompanyStatus.ACTIVE).length;
-
-  const monthlyBalanceData = [
-    { name: 'Jan', value: totalRevenue * 0.7 },
-    { name: 'Fev', value: totalRevenue * 0.75 },
-    { name: 'Mar', value: totalRevenue * 0.82 },
-    { name: 'Abr', value: totalRevenue * 0.9 },
-    { name: 'Mai', value: totalRevenue }
-  ];
-
   return (
-    <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto pb-20 px-2 sm:px-0">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto pb-20">
+      {/* Header com Navegação de Gestão */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Administração Global</h2>
-          <p className="text-slate-500 font-bold text-sm uppercase tracking-widest">Painel de Controle da Plataforma</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <div className="flex bg-slate-200 p-1.5 rounded-2xl overflow-x-auto scrollbar-hide">
-             <button 
-               onClick={() => setActiveTab('geral')}
-               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'geral' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-             >
-               Clientes
-             </button>
-             <button 
-               onClick={() => setActiveTab('financeiro')}
-               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'financeiro' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-             >
-               Financeiro
-             </button>
-             <button 
-               onClick={() => setActiveTab('suporte')}
-               className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'suporte' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-             >
-               Suporte Central
-             </button>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-500/20">
+              <Globe size={24} />
+            </div>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Command Center</h2>
           </div>
-          <button 
-            onClick={() => { setErrorMessage(null); setShowAddModal(true); }}
-            className="bg-slate-900 text-white px-8 py-4 rounded-[2rem] font-black flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-xl active:scale-95"
-          >
-            <UserPlus size={24} /> NOVO CLIENTE
-          </button>
+          <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.3em]">Gestão Global da Plataforma v2.1</p>
         </div>
+
+        <div className="flex bg-slate-100 p-1.5 rounded-[2rem] border border-slate-200 w-full lg:w-auto overflow-x-auto scrollbar-hide">
+          <TabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Activity size={16} />} label="Overview" />
+          <TabButton active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} icon={<Users size={16} />} label="Marmorarias" />
+          <TabButton active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} icon={<DollarSign size={16} />} label="Financeiro" />
+        </div>
+
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="bg-slate-900 text-white px-8 py-4 rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-xl active:scale-95 text-sm uppercase tracking-widest whitespace-nowrap w-full lg:w-auto"
+        >
+          <UserPlus size={20} /> Onboard de Cliente
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard label="Total de Empresas" value={companies.length} icon={<ShieldCheck size={20} />} color="text-blue-600" bg="bg-blue-50" />
-        <StatCard label="MRR (Mensalidade)" value={`R$ ${totalRevenue.toLocaleString()}`} icon={<Wallet size={20} />} color="text-emerald-600" bg="bg-emerald-50" />
-        <StatCard label="Ativos/Bloqueados" value={`${activeCompanies} / ${companies.length - activeCompanies}`} icon={<ShieldAlert size={20} />} color="text-slate-600" bg="bg-slate-100" />
-      </div>
-
-      {activeTab === 'geral' && (
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-          <div className="relative mb-8">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-            <input 
-              type="text" 
-              placeholder="Pesquisar marmoraria cadastrada..."
-              className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-200 rounded-3xl font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      {/* Visão de Dashboard Global */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-8 animate-slideUp">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard label="Receita Mensal (MRR)" value={`R$ ${totalRevenue.toLocaleString()}`} icon={<Wallet size={20} />} trend="+12%" color="text-emerald-600" />
+            <StatCard label="Marmorarias Ativas" value={companies.length} icon={<Building2Icon size={20} />} trend="+3" color="text-blue-600" />
+            <StatCard label="Total de Chapas" value={totalSlabs} icon={<Package size={20} />} trend="+142" color="text-amber-600" />
+            <StatCard label="Usuários na Plataforma" value={totalUsers} icon={<Users size={20} />} trend="+8" color="text-indigo-600" />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-50">
-                  <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Marmoraria</th>
-                  <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Dados</th>
-                  <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                  <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Controle</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filteredCompanies.map(company => (
-                  <tr key={company.id} className="group hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-lg">
-                          {company.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-black text-slate-900 uppercase tracking-tight text-base leading-none mb-1">{company.name}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{company.id}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-6">
-                      <div className="flex flex-col gap-1 items-center">
-                         <span className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1.5"><Users size={12} /> {getTeamMembers(company.id).length} Membros</span>
-                         <span className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1.5"><Package size={12} /> {getInventory(company.id).length} Chapas</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-6">
-                      {company.status === CompanyStatus.ACTIVE ? (
-                        <span className="px-3 py-1 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-black uppercase tracking-widest">Ativo</span>
-                      ) : (
-                        <span className="px-3 py-1 bg-red-100 text-red-700 border border-red-200 rounded-lg text-[9px] font-black uppercase tracking-widest">Suspenso</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-6 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => handleShowCredentials(company)}
-                          className="p-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center gap-2"
-                          title="Ver Credenciais de Acesso"
-                        >
-                          <Key size={16} />
-                        </button>
-                        <button 
-                          onClick={() => onImpersonate(company.id)}
-                          className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-2"
-                        >
-                          <ExternalLink size={14} /> Acessar Unidade
-                        </button>
-                        <button 
-                          onClick={() => handleToggleStatus(company.id, company.status)}
-                          className={`p-2.5 rounded-xl transition-all ${company.status === CompanyStatus.ACTIVE ? 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white'}`}
-                        >
-                          {company.status === CompanyStatus.ACTIVE ? <Lock size={16} /> : <Unlock size={16} />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'financeiro' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-           <div className="lg:col-span-8 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-8 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
               <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    <BarChart3 size={20} className="text-blue-500" /> Balanço de Faturamento
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Comparativo de receita mensal (MRR)</p>
-                </div>
-                <div className="bg-emerald-50 px-4 py-2 rounded-2xl flex items-center gap-2">
-                  <ArrowUpRight size={16} className="text-emerald-500" />
-                  <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">+12% vs mês anterior</span>
-                </div>
+                <h3 className="font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                  <BarChart3 size={20} className="text-blue-500" /> Crescimento de Receita
+                </h3>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Últimos 5 Meses</span>
               </div>
-              <div className="h-[400px]">
+              <div className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyBalanceData}>
+                  <AreaChart data={statsData}>
                     <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" fontSize={10} fontWeight={900} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
                     <YAxis fontSize={10} fontWeight={900} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
-                    <Tooltip 
-                      contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}}
-                      labelStyle={{fontWeight: 900, fontSize: '12px', marginBottom: '4px'}}
-                    />
-                    <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorRevenue)" />
+                    <Tooltip contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} />
+                    <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={4} fill="url(#colorRev)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-           </div>
+            </div>
 
-           <div className="lg:col-span-4 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-full">
-              <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2 mb-6">
-                <DollarSign size={20} className="text-emerald-500" /> Precificação (Fee)
-              </h3>
-              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
-                {companies.map(company => (
-                  <div key={company.id} className="p-4 bg-slate-50 rounded-3xl border border-slate-100 group transition-all hover:bg-white hover:shadow-md">
-                    <div className="flex justify-between items-center mb-3">
-                       <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight truncate max-w-[120px]">{company.name}</span>
-                       <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">{company.status === 'ACTIVE' ? 'Ativo' : 'Pendente'}</span>
+            <div className="lg:col-span-4 bg-slate-900 p-8 rounded-[3rem] shadow-2xl text-white space-y-8 flex flex-col justify-between overflow-hidden relative group">
+               <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
+               <div className="relative z-10">
+                 <h3 className="text-xl font-black uppercase tracking-tight mb-2">Suporte Marmobot</h3>
+                 <p className="text-slate-400 text-xs font-medium">Monitoramento de IA em tempo real.</p>
+               </div>
+               
+               <div className="space-y-4 relative z-10">
+                 <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Taxa de Resolução IA</p>
+                    <p className="text-3xl font-black">94.2%</p>
+                 </div>
+                 <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Chamados Abertos</p>
+                    <p className="text-3xl font-black text-amber-400">08</p>
+                 </div>
+               </div>
+
+               <button onClick={() => setActiveTab('clientes')} className="relative z-10 w-full bg-blue-600 py-4 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-white hover:text-slate-900 transition-all shadow-xl">
+                 Gerenciar Chamados <ArrowRight size={18} />
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de Marmorarias e Impersonation */}
+      {activeTab === 'clientes' && (
+        <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 animate-slideUp">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-10">
+            <div className="relative w-full md:w-96 group">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
+              <input 
+                type="text" 
+                placeholder="Localizar cliente na rede..."
+                className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-200 rounded-[2rem] font-black text-sm outline-none focus:ring-4 focus:ring-blue-500/5 transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+              <span className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase border border-emerald-100">Ativas ({companies.length})</span>
+              <span className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase border border-red-100">Suspensas (0)</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {companies.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(company => {
+              const members = getTeamMembers(company.id).length;
+              const slabs = getInventory(company.id).length;
+              return (
+                <div key={company.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 space-y-6 hover:shadow-2xl transition-all duration-500 group relative overflow-hidden">
+                  <div className={`absolute top-0 right-0 w-24 h-2 bg-gradient-to-l ${company.status === 'ACTIVE' ? 'from-emerald-500' : 'from-red-500'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity`}></div>
+                  
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl transform group-hover:rotate-6 transition-transform">
+                        {company.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-black text-slate-900 uppercase tracking-tight text-xl leading-none truncate max-w-[150px]">{company.name}</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ID: {company.id}</p>
+                      </div>
                     </div>
-                    <div className="relative">
-                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">R$</span>
-                       <input 
-                         type="number" 
-                         className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl font-black text-slate-900 outline-none focus:border-emerald-500 transition-all"
-                         value={company.monthlyFee}
-                         onChange={(e) => handleUpdateFee(company.id, Number(e.target.value))}
-                       />
+                    <button 
+                      onClick={() => handleShowCredentials(company)}
+                      className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all"
+                    >
+                      <Key size={18} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-5 rounded-[1.5rem] shadow-inner">
+                    <div className="text-center">
+                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-1">Membros</p>
+                       <p className="text-xl font-black text-slate-900">{members}</p>
+                    </div>
+                    <div className="text-center border-l border-slate-200">
+                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-1">Estoque</p>
+                       <p className="text-xl font-black text-slate-900">{slabs}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-           </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => onImpersonate(company.id)}
+                      className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg active:scale-95 transition-all"
+                    >
+                      <Zap size={14} className="fill-current" /> Acessar Unidade
+                    </button>
+                    <button 
+                      onClick={() => handleToggleStatus(company.id, company.status)}
+                      className={`p-4 rounded-2xl transition-all ${company.status === 'ACTIVE' ? 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white'}`}
+                    >
+                      {company.status === 'ACTIVE' ? <Lock size={18} /> : <Unlock size={18} />}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {activeTab === 'suporte' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-           <div className="lg:col-span-8 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
-              <div className="flex justify-between items-center">
-                 <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                       <Headphones size={24} className="text-blue-600" /> Central de Atendimento
-                    </h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Chamados em aberto e interações de clientes</p>
-                 </div>
-                 <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button className="px-4 py-2 bg-white text-slate-900 rounded-lg text-[10px] font-black uppercase shadow-sm">Pendentes (2)</button>
-                    <button className="px-4 py-2 text-slate-400 rounded-lg text-[10px] font-black uppercase">Finalizados</button>
-                 </div>
-              </div>
-
-              <div className="space-y-6">
-                 {/* Simulação de Tickets */}
-                 {[
-                   { id: 'TKT-991', client: 'Marmoraria Premium', msg: 'Não consigo gerar o QR Code da chapa CHP-881.', time: '14:20', type: 'IA Respondeu' },
-                   { id: 'TKT-992', client: 'Arte em Pedras', msg: 'Gostaria de saber como exportar meu relatório mensal.', time: '15:10', type: 'Aguardando Humano' }
-                 ].map(ticket => (
-                    <div key={ticket.id} className="p-6 bg-slate-50 border border-slate-100 rounded-[2rem] hover:bg-white hover:shadow-xl transition-all cursor-pointer group">
-                       <div className="flex justify-between items-start mb-4">
-                          <div className="flex items-center gap-3">
-                             <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black text-xs">{ticket.client.charAt(0)}</div>
-                             <div>
-                                <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{ticket.client}</p>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{ticket.id} • {ticket.time}</p>
-                             </div>
-                          </div>
-                          <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${ticket.type === 'IA Respondeu' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
-                             {ticket.type}
-                          </span>
-                       </div>
-                       <p className="text-sm font-medium text-slate-600 pl-1">"{ticket.msg}"</p>
-                       <div className="mt-6 pt-4 border-t border-slate-200/50 flex justify-between items-center">
-                          <div className="flex items-center gap-2 text-blue-600 text-[10px] font-black uppercase tracking-widest">
-                             <MessageSquareText size={14} /> Responder Agora
-                          </div>
-                          <div className="flex items-center gap-2 text-slate-400 text-[9px] font-black uppercase tracking-widest">
-                             <History size={12} /> Ver Histórico
-                          </div>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-
-           <div className="lg:col-span-4 space-y-6">
-              <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white space-y-6">
-                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-                       <Bot size={24} />
-                    </div>
-                    <div>
-                       <h4 className="font-black text-lg uppercase tracking-tight leading-none">Marmobot Status</h4>
-                       <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-2">IA Gemini Flash 2.5</p>
-                    </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white/10 p-4 rounded-2xl border border-white/5">
-                       <p className="text-[8px] text-white/40 font-black uppercase tracking-widest">Respostas IA</p>
-                       <p className="text-2xl font-black mt-1">1.240</p>
-                    </div>
-                    <div className="bg-white/10 p-4 rounded-2xl border border-white/5">
-                       <p className="text-[8px] text-white/40 font-black uppercase tracking-widest">Precisão</p>
-                       <p className="text-2xl font-black mt-1">94%</p>
-                    </div>
-                 </div>
-                 <button className="w-full bg-white text-slate-900 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-600 hover:text-white transition-all">Configurar Treinamento</button>
-              </div>
-
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center space-y-4">
-                 <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-                    <Headphones size={28} />
-                 </div>
-                 <h4 className="text-slate-900 font-black uppercase tracking-tight">SLA de Atendimento</h4>
-                 <div className="space-y-3">
-                    <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                       <span>Primeira Resposta</span>
-                       <span className="text-slate-900 font-black">12 min</span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                       <div className="w-4/5 h-full bg-blue-600"></div>
-                    </div>
-                 </div>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Modais omitidos para brevidade (ShowCredsModal e ShowAddModal permanecem iguais) */}
+      {/* Modais omitidos para brevidade mas preservados na lógica */}
       {showCredsModal && selectedCreds && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[210] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-md:max-w-xs max-w-md p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
+          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Dados de Acesso</h3>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Admin Master</h3>
                 <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest">{selectedCompanyName}</p>
               </div>
-              <button onClick={() => setShowCredsModal(false)} className="text-slate-400 hover:text-slate-900 p-2 rounded-full hover:bg-slate-100 transition-all">
+              <button onClick={() => setShowCredsModal(false)} className="text-slate-400 hover:text-slate-900 p-2 bg-slate-50 rounded-full transition-all">
                 <X size={24} />
               </button>
             </div>
             <div className="space-y-6">
-              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-5">
+              <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 space-y-5">
                  <div className="space-y-1.5">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail de Login</p>
-                    <div className="flex justify-between items-center bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                        <span className="font-bold text-slate-700 text-sm truncate pr-2">{selectedCreds.email}</span>
                        <button onClick={() => copyToClipboard(selectedCreds.email, 'email')} className="p-2 hover:bg-slate-50 rounded-xl transition-all">
                          {copiedField === 'email' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} className="text-slate-400" />}
@@ -407,8 +280,8 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                     </div>
                  </div>
                  <div className="space-y-1.5">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha do Cliente</p>
-                    <div className="flex justify-between items-center bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha Gerada</p>
+                    <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                        <span className="font-black text-slate-900 text-sm tracking-widest">{selectedCreds.password}</span>
                        <button onClick={() => copyToClipboard(selectedCreds.password || '', 'pass')} className="p-2 hover:bg-slate-50 rounded-xl transition-all">
                          {copiedField === 'pass' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} className="text-slate-400" />}
@@ -416,7 +289,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                     </div>
                  </div>
               </div>
-              <button onClick={() => setShowCredsModal(false)} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-600 transition-all active:scale-95">Entendido</button>
+              <button onClick={() => setShowCredsModal(false)} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-blue-600 transition-all active:scale-95">FECHAR</button>
             </div>
           </div>
         </div>
@@ -424,37 +297,18 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
 
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-10 shadow-2xl space-y-8 animate-popIn">
+          <div className="bg-white rounded-[3rem] w-full max-w-xl p-10 shadow-2xl space-y-8 animate-popIn">
             <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Novo Cadastro de Cliente</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-900 p-2 rounded-full hover:bg-slate-100"><X size={24} /></button>
+              <h3 className="text-3xl font-black text-slate-900 tracking-tighter">Onboarding de Unidade</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-900 p-2 bg-slate-50 rounded-full transition-all"><X size={28} /></button>
             </div>
-            {errorMessage && (
-              <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-3 animate-shake">
-                <AlertCircle size={20} />
-                <span className="text-xs font-black uppercase tracking-widest">{errorMessage}</span>
-              </div>
-            )}
             <form onSubmit={handleCreateAccount} className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Responsável</label>
-                  <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newName} onChange={(e) => setNewName(e.target.value)} required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome da Marmoraria</label>
-                  <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none text-blue-600" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} required />
-                </div>
+                <InputGroup label="Responsável" value={newName} onChange={setNewName} placeholder="Ex: João Silva" />
+                <InputGroup label="Marmoraria" value={newCompany} onChange={setNewCompany} placeholder="Ex: Marmoraria Premium" />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail de Login</label>
-                <input type="email" placeholder="cliente@email.com" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha (vazio = marm123)</label>
-                <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="marm123" value={newPass} onChange={(e) => setNewPass(e.target.value)} />
-              </div>
-              <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 transition-all active:scale-95">FINALIZAR CADASTRO</button>
+              <InputGroup label="E-mail Administrativo" value={newEmail} onChange={setNewEmail} placeholder="adm@marmoraria.com" type="email" />
+              <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-emerald-600 transition-all active:scale-95 text-lg">ATIVAR NOVA UNIDADE</button>
             </form>
           </div>
         </div>
@@ -463,14 +317,48 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   );
 };
 
-const StatCard: React.FC<{ label: string, value: string | number, icon: React.ReactNode, color: string, bg: string }> = ({ label, value, icon, color, bg }) => (
-  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-5">
-    <div className={`${bg} ${color} p-4 rounded-2xl`}>{icon}</div>
-    <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
+// Componentes Auxiliares para Limpeza de Código
+const TabButton: React.FC<{ active: boolean, onClick: () => void, icon: React.ReactNode, label: string }> = ({ active, onClick, icon, label }) => (
+  <button 
+    onClick={onClick}
+    className={`px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 whitespace-nowrap ${active ? 'bg-white text-slate-900 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
+  >
+    {icon} {label}
+  </button>
+);
+
+const StatCard: React.FC<{ label: string, value: string | number, icon: React.ReactNode, trend: string, color: string }> = ({ label, value, icon, trend, color }) => (
+  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-6 relative overflow-hidden group">
+    <div className={`absolute top-0 left-0 w-1 h-full ${color.replace('text', 'bg')} opacity-40`}></div>
+    <div className={`bg-slate-50 ${color} p-5 rounded-3xl shadow-inner group-hover:scale-110 transition-transform duration-500`}>{icon}</div>
+    <div className="flex-1 min-w-0">
+      <div className="flex justify-between items-center mb-1">
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{label}</p>
+        <span className={`text-[8px] font-black ${color} bg-white px-2 py-0.5 rounded-full border border-slate-100`}>{trend}</span>
+      </div>
+      <p className="text-3xl font-black text-slate-900 tracking-tighter truncate">{value}</p>
     </div>
   </div>
+);
+
+const InputGroup: React.FC<{ label: string, value: string, onChange: (v: string) => void, placeholder: string, type?: string }> = ({ label, value, onChange, placeholder, type = "text" }) => (
+  <div className="space-y-2">
+    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+    <input 
+      type={type} 
+      className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 transition-all placeholder:text-slate-300"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      required
+    />
+  </div>
+);
+
+const Building2Icon: React.FC<{ size?: number, className?: string }> = ({ size = 24, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>
+  </svg>
 );
 
 export default PlatformManagement;
