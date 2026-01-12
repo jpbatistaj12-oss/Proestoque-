@@ -12,17 +12,21 @@ const KEYS = {
   SESSION: 'marm_active_session'
 };
 
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
 export const getCurrentUser = (): User | null => {
   const session = localStorage.getItem(KEYS.SESSION);
   return session ? JSON.parse(session) : null;
 };
 
 export const login = (email: string, password?: string): User | null => {
-  if (email === 'admin@marmoraria.control' && password === 'marm@2025') {
+  const cleanEmail = normalizeEmail(email);
+  
+  if (cleanEmail === 'admin@marmoraria.control' && password === 'marm@2025') {
     const superAdmin: User = {
       id: 'SUPER-001',
       name: 'Administrador Central',
-      email: email,
+      email: cleanEmail,
       role: UserRole.SUPER_ADMIN,
       companyId: 'PLATFORM_OWNER'
     };
@@ -31,7 +35,7 @@ export const login = (email: string, password?: string): User | null => {
   }
 
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  const user = users.find(u => u.email === email);
+  const user = users.find(u => normalizeEmail(u.email) === cleanEmail);
   
   if (user && (!password || user.password === password)) {
     const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
@@ -48,8 +52,8 @@ export const login = (email: string, password?: string): User | null => {
   return null;
 };
 
-// Nova função: Registro manual pelo Super Admin
 export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
+  const cleanEmail = normalizeEmail(email);
   const companyId = `COMP-${Math.random().toString(36).substr(2, 9)}`;
   const adminId = `USR-${Math.random().toString(36).substr(2, 9)}`;
   
@@ -58,13 +62,14 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
     name: companyName, 
     adminId,
     status: CompanyStatus.ACTIVE,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    monthlyFee: 299 // Valor padrão inicial
   };
 
   const newUser: StoredUser = { 
     id: adminId, 
     name: adminName, 
-    email, 
+    email: cleanEmail, 
     role: UserRole.ADMIN, 
     companyId,
     password: password || 'marm123'
@@ -73,6 +78,10 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
   const companies = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
   const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
 
+  if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
+    throw new Error("Este e-mail já está cadastrado em outra conta.");
+  }
+
   companies.push(newCompany);
   users.push(newUser);
 
@@ -80,10 +89,21 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 };
 
+export const updateCompanyFee = (companyId: string, fee: number): void => {
+  const companies = getAllCompanies();
+  const index = companies.findIndex(c => c.id === companyId);
+  if (index >= 0) {
+    companies[index].monthlyFee = fee;
+    localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
+  }
+};
+
 export const logout = () => localStorage.removeItem(KEYS.SESSION);
 
 export const getAllCompanies = (): Company[] => {
-  return JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
+  const companies = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
+  // Migração: Garante que empresas antigas tenham o campo monthlyFee
+  return companies.map((c: any) => ({ ...c, monthlyFee: c.monthlyFee || 299 }));
 };
 
 export const updateCompanyStatus = (companyId: string, status: CompanyStatus): void => {
@@ -101,10 +121,16 @@ export const getTeamMembers = (companyId: string): User[] => {
 };
 
 export const addTeamMember = (name: string, email: string, role: UserRole, companyId: string, password?: string): void => {
+  const cleanEmail = normalizeEmail(email);
   const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  
+  if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
+    throw new Error("Este e-mail já está em uso por outro colaborador.");
+  }
+
   const newUser: StoredUser = {
     id: `USR-${Math.random().toString(36).substr(2, 9)}`,
-    name, email, role, companyId, password
+    name, email: cleanEmail, role, companyId, password
   };
   users.push(newUser);
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));

@@ -31,7 +31,8 @@ const App: React.FC = () => {
     if (sessionUser) {
       setUser(sessionUser);
       refreshInventory(impersonatedCompanyId || sessionUser.companyId);
-      if (sessionUser.role === UserRole.SUPER_ADMIN && activeTab === 'inventory') {
+      // Só redireciona se for Super Admin na aba estoque e NÃO estiver visualizando um cliente
+      if (sessionUser.role === UserRole.SUPER_ADMIN && activeTab === 'inventory' && !impersonatedCompanyId) {
         setActiveTab('platform');
       }
     }
@@ -54,7 +55,7 @@ const App: React.FC = () => {
 
   const handleImpersonate = (companyId: string) => {
     setImpersonatedCompanyId(companyId);
-    setActiveTab('dashboard'); // Vai para o dashboard da empresa selecionada
+    setActiveTab('dashboard');
   };
 
   const stopImpersonating = () => {
@@ -93,7 +94,7 @@ const App: React.FC = () => {
       case 'projects':
         return <ProjectSearch inventory={inventory} onSelectItem={handleSelectItem} />;
       case 'add':
-        return <AddItem onComplete={() => { refreshInventory(currentCompanyId); setActiveTab('inventory'); }} />;
+        return <AddItem onComplete={() => { refreshInventory(currentCompanyId); setActiveTab('inventory'); }} user={user} companyId={currentCompanyId} />;
       case 'scanner':
         return <QRScanner onScan={handleSelectItem} />;
       case 'team':
@@ -137,7 +138,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className="text-white font-bold text-sm tracking-tight">{APP_NAME}</h1>
-            <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">v2.0 Managed</p>
+            <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">v2.1 Secured</p>
           </div>
         </div>
 

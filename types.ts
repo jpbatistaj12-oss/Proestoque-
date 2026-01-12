@@ -41,6 +41,7 @@ export interface Company {
   adminId: string;
   status: CompanyStatus;
   createdAt: string;
+  monthlyFee: number; // Valor da assinatura mensal
 }
 
 export interface Point {

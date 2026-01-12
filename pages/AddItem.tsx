@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MaterialCategory, InventoryItem, StockStatus, User } from '../types';
-import { saveItem, getCurrentUser } from '../services/storageService';
-import { Camera, Save, ArrowLeft, Image as ImageIcon, Trash2, UploadCloud, ChevronLeft, ChevronRight, Plus, X, RotateCcw, MonitorPlay, Zap, MapPin } from 'lucide-react';
+import { saveItem } from '../services/storageService';
+import { Camera, Save, Image as ImageIcon, Trash2, UploadCloud, ChevronLeft, ChevronRight, Plus, X, RotateCcw, MonitorPlay, MapPin } from 'lucide-react';
 
 interface AddItemProps {
   onComplete: () => void;
+  user: User;
+  companyId: string;
 }
 
-const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
-  const [user, setUser] = useState<User | null>(null);
+const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,10 +33,6 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [showFlash, setShowFlash] = useState(false);
 
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -56,7 +53,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          facingMode: { exact: 'environment' },
+          facingMode: { ideal: 'environment' },
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         }, 
@@ -117,7 +114,6 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
     if (!formData.commercialName || !formData.width || !formData.height) {
       alert('Por favor, preencha os campos obrigatórios (Nome e Medidas).');
       return;
@@ -131,7 +127,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
     const area = (formData.width * formData.height) / 10000;
     const newItem: InventoryItem = {
       id: `CHP-${Math.floor(1000 + Math.random() * 9000)}`,
-      companyId: user.companyId,
+      companyId: companyId,
       category: formData.category,
       commercialName: formData.commercialName,
       thickness: formData.thickness,
