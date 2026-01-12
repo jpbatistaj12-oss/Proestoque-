@@ -6,7 +6,8 @@ import { STATUS_COLORS } from '../constants';
 import { 
   ArrowLeft, Scissors, Printer, Plus, Undo2, Trash2, MapPin, 
   CheckCircle2, X as XIcon, Zap, ChevronLeft, ChevronRight,
-  Maximize, Move, MapPinned, Info, Target, Camera, Image as ImageIcon
+  Maximize, Move, MapPinned, Info, Target, Camera, Image as ImageIcon,
+  Gauge
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -30,6 +31,49 @@ const calculatePolygonArea = (points: Point[]): number => {
     area -= points[j].x * points[i].y;
   }
   return Math.abs(area) / 20000; // cm² para m²
+};
+
+const UsageGauge: React.FC<{ percentage: number }> = ({ percentage }) => {
+  const radius = 36;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percentage / 100) * circumference;
+  
+  const getColor = () => {
+    if (percentage > 70) return '#10b981'; // Emerald-500
+    if (percentage > 25) return '#3b82f6'; // Blue-500
+    return '#ef4444'; // Red-500
+  };
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg className="w-24 h-24 transform -rotate-90">
+        <circle
+          cx="48"
+          cy="48"
+          r={radius}
+          stroke="currentColor"
+          strokeWidth="8"
+          fill="transparent"
+          className="text-slate-100"
+        />
+        <circle
+          cx="48"
+          cy="48"
+          r={radius}
+          stroke={getColor()}
+          strokeWidth="8"
+          strokeDasharray={circumference}
+          style={{ strokeDashoffset: offset, transition: 'stroke-dashoffset 0.5s ease' }}
+          strokeLinecap="round"
+          fill="transparent"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-xl font-black text-slate-900 leading-none">{Math.round(percentage)}%</span>
+        <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Livre</span>
+      </div>
+    </div>
+  );
 };
 
 const ShapeRenderer: React.FC<{ 
@@ -131,8 +175,8 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
     const rawY = e.clientY - rect.top;
 
     const maxDim = Math.max(item.currentWidth, item.currentHeight);
-    const canvasSize = window.innerWidth < 640 ? 280 : 340;
-    const padding = 30;
+    const canvasSize = window.innerWidth < 640 ? 260 : 320;
+    const padding = 25;
     const scale = (canvasSize - padding) / maxDim;
     const offsetX = (canvasSize - item.currentWidth * scale) / 2;
     const offsetY = (canvasSize - item.currentHeight * scale) / 2;
@@ -190,6 +234,7 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
 
   const currentArea = calculatePolygonArea(drawingPoints);
   const areaUsed = Number((item.availableArea - (drawingPoints.length > 0 ? currentArea : 0)).toFixed(4));
+  const usagePercentage = (item.availableArea / item.totalArea) * 100;
 
   const handleAddPoint = (e: React.MouseEvent<SVGSVGElement>) => {
     if (wasDraggingRef.current) {
@@ -363,11 +408,14 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
                     <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter leading-tight">{item.commercialName}</h2>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">{item.category} • {item.id}</p>
                   </div>
-                  <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border-2 shrink-0 ${STATUS_COLORS[item.status]}`}>
-                    {item.status}
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border-2 ${STATUS_COLORS[item.status]}`}>
+                      {item.status}
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4 pt-6 border-t border-slate-50">
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4 pt-6 border-t border-slate-50 relative">
                   <div className="space-y-1">
                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Medidas Max</p>
                     <p className="font-black text-blue-600 text-sm">{item.currentWidth}×{item.currentHeight} cm</p>
@@ -383,6 +431,15 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
                        <span className="truncate">{item.location || 'N/A'}</span>
                     </div>
                   </div>
+                  
+                  {/* Gauge de Aproveitamento em destaque */}
+                  <div className="absolute -top-4 right-0 hidden sm:block">
+                    <UsageGauge percentage={usagePercentage} />
+                  </div>
+                </div>
+
+                <div className="sm:hidden flex justify-center py-4 border-t border-slate-50">
+                  <UsageGauge percentage={usagePercentage} />
                 </div>
               </div>
             </div>
@@ -430,35 +487,35 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
         </div>
       </div>
 
-      {/* Cut Modal Refinado */}
+      {/* Cut Modal Refinado - Ajuste de Altura e Scroll */}
       {showCutModal && (
         <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-7xl overflow-hidden shadow-2xl flex flex-col lg:flex-row animate-popIn border border-white/10 relative max-h-[95vh]">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-7xl overflow-hidden shadow-2xl flex flex-col lg:flex-row animate-popIn border border-white/10 relative max-h-[90vh]">
             <button onClick={() => setShowCutModal(false)} className="absolute top-4 right-4 z-[110] text-slate-400 hover:text-slate-900 p-2 bg-white rounded-2xl shadow-xl">
               <XIcon size={24} />
             </button>
             
-            {/* Esquerda: Editor Visual (Fixado) */}
-            <div className="bg-slate-900 lg:w-[50%] p-5 sm:p-8 flex flex-col border-r border-white/5 overflow-y-auto lg:overflow-visible">
-               <h3 className="text-white text-base sm:text-xl font-black uppercase tracking-tight flex items-center gap-3 mb-4">
+            {/* Esquerda: Editor Visual (Ajustado) */}
+            <div className="bg-slate-900 lg:w-[48%] p-4 sm:p-8 flex flex-col border-r border-white/5 overflow-y-auto lg:overflow-visible min-h-0">
+               <h3 className="text-white text-base sm:text-xl font-black uppercase tracking-tight flex items-center gap-3 mb-4 shrink-0">
                  <Move size={18} className="text-blue-500" /> Geometria da Sobra
                </h3>
                
-               <div className="flex-1 flex items-center justify-center bg-slate-950/40 rounded-[2rem] border border-white/5 relative overflow-hidden group shadow-inner min-h-[300px] mb-4">
-                 <svg ref={svgRef} width={window.innerWidth < 640 ? 280 : 340} height={window.innerWidth < 640 ? 280 : 340} className="cursor-crosshair overflow-visible z-10" onClick={handleAddPoint}>
+               <div className="flex-1 flex items-center justify-center bg-slate-950/40 rounded-[2rem] border border-white/5 relative overflow-hidden group shadow-inner min-h-[250px] mb-4">
+                 <svg ref={svgRef} width={window.innerWidth < 640 ? 260 : 320} height={window.innerWidth < 640 ? 260 : 320} className="cursor-crosshair overflow-visible z-10" onClick={handleAddPoint}>
                    <rect width="100%" height="100%" fill="transparent" />
                    {drawingPoints.length > 0 && (
                      <>
                       <polygon points={drawingPoints.map(p => {
-                          const size = window.innerWidth < 640 ? 280 : 340;
-                          const scale = (size - 30) / Math.max(item.currentWidth, item.currentHeight);
+                          const size = window.innerWidth < 640 ? 260 : 320;
+                          const scale = (size - 25) / Math.max(item.currentWidth, item.currentHeight);
                           const ox = (size - item.currentWidth * scale) / 2;
                           const oy = (size - item.currentHeight * scale) / 2;
                           return `${ox + p.x * scale},${oy + p.y * scale}`;
                         }).join(' ')} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="3" />
                       {drawingPoints.map((p, i) => {
-                        const size = window.innerWidth < 640 ? 280 : 340;
-                        const scale = (size - 30) / Math.max(item.currentWidth, item.currentHeight);
+                        const size = window.innerWidth < 640 ? 260 : 320;
+                        const scale = (size - 25) / Math.max(item.currentWidth, item.currentHeight);
                         const ox = (size - item.currentWidth * scale) / 2;
                         const oy = (size - item.currentHeight * scale) / 2;
                         return (
@@ -473,102 +530,101 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
                  </div>
                </div>
 
-               <div className="bg-slate-950/40 p-4 rounded-2xl border border-white/5 overflow-x-auto whitespace-nowrap mb-4">
+               <div className="bg-slate-950/40 p-3 rounded-2xl border border-white/5 overflow-x-auto whitespace-nowrap mb-4 shrink-0">
                  <p className="text-[9px] text-slate-400 font-black uppercase mb-2">Ajuste de Lados (cm)</p>
-                 <div className="flex gap-3">
+                 <div className="flex gap-2">
                     {drawingPoints.length > 1 ? drawingPoints.map((p, idx) => {
                         const dist = Math.round(calculateDistance(p, drawingPoints[(idx + 1) % drawingPoints.length]));
                         return (
-                          <div key={idx} className="shrink-0 bg-slate-900 p-2.5 rounded-xl border border-white/5 min-w-[80px] text-center">
+                          <div key={idx} className="shrink-0 bg-slate-900 p-2 rounded-xl border border-white/5 min-w-[70px] text-center">
                             <span className="text-[7px] text-slate-500 font-black uppercase block mb-1">Lado {idx+1}</span>
-                            <input type="number" className="bg-slate-950 text-white font-black text-xs p-1 rounded-lg border border-white/5 w-full text-center outline-none focus:border-blue-500" value={dist || ''} onChange={(e) => updateSegmentLength(idx, Number(e.target.value))} />
+                            <input type="number" className="bg-slate-950 text-white font-black text-[10px] p-1 rounded-lg border border-white/5 w-full text-center outline-none focus:border-blue-500" value={dist || ''} onChange={(e) => updateSegmentLength(idx, Number(e.target.value))} />
                           </div>
                         );
-                    }) : <p className="text-slate-600 text-[9px] font-bold uppercase py-2">Inicie clicando no desenho...</p>}
+                    }) : <p className="text-slate-600 text-[9px] font-bold uppercase py-2">Inicie clicando na chapa...</p>}
                  </div>
                </div>
 
-               <div className="flex gap-2">
-                 <button onClick={() => setDrawingPoints(prev => prev.slice(0, -1))} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Undo2 size={14} /> Desfazer</button>
-                 <button onClick={() => setDrawingPoints([])} className="bg-slate-800 text-red-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Trash2 size={14} /> Limpar</button>
+               <div className="flex gap-2 shrink-0">
+                 <button onClick={() => setDrawingPoints(prev => prev.slice(0, -1))} className="bg-slate-800 text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-2"><Undo2 size={14} /> Desfazer</button>
+                 <button onClick={() => setDrawingPoints([])} className="bg-slate-800 text-red-400 px-3 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-2"><Trash2 size={14} /> Limpar</button>
                </div>
             </div>
 
-            {/* Direita: Formulário (Rolagem Independente) */}
-            <div className="lg:w-[50%] flex flex-col h-full bg-slate-50">
-              <div className="flex-1 p-6 sm:p-8 overflow-y-auto space-y-6 pb-24 lg:pb-8">
+            {/* Direita: Formulário (Rolagem Independente e Compactado) */}
+            <div className="lg:w-[52%] flex flex-col h-full bg-slate-50 min-h-0">
+              <div className="flex-1 p-5 sm:p-8 overflow-y-auto space-y-5 pb-24 lg:pb-8">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Registro Técnico</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Dados da produção e controle fotográfico</p>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight leading-none">Registro Técnico</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Dados da produção e documentação</p>
                 </div>
 
-                {/* Seção de Fotos Compacta */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Seção de Fotos Mais Compacta */}
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto da Peça</label>
-                      <button onClick={() => triggerUpload('piece')} className={`w-full aspect-[4/3] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden relative group ${cutPiecePhoto ? 'border-transparent' : 'border-slate-300 hover:bg-blue-50'}`}>
-                        {cutPiecePhoto ? <img src={cutPiecePhoto} className="w-full h-full object-cover" /> : <Camera size={20} className="text-slate-400" />}
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Peça Produzida</label>
+                      <button onClick={() => triggerUpload('piece')} className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden relative group ${cutPiecePhoto ? 'border-transparent' : 'border-slate-300 bg-white hover:bg-blue-50'}`}>
+                        {cutPiecePhoto ? <img src={cutPiecePhoto} className="w-full h-full object-cover" /> : <Camera size={18} className="text-slate-400" />}
                       </button>
                   </div>
                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto da Sobra</label>
-                      <button onClick={() => triggerUpload('leftover')} className={`w-full aspect-[4/3] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden relative group ${cutLeftoverPhoto ? 'border-transparent' : 'border-slate-300 hover:bg-emerald-50'}`}>
-                        {cutLeftoverPhoto ? <img src={cutLeftoverPhoto} className="w-full h-full object-cover" /> : <Camera size={20} className="text-slate-400" />}
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Sobras no Cavalete</label>
+                      <button onClick={() => triggerUpload('leftover')} className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden relative group ${cutLeftoverPhoto ? 'border-transparent' : 'border-slate-300 bg-white hover:bg-emerald-50'}`}>
+                        {cutLeftoverPhoto ? <img src={cutLeftoverPhoto} className="w-full h-full object-cover" /> : <Camera size={18} className="text-slate-400" />}
                       </button>
                   </div>
                 </div>
 
-                {/* Campos do Formulário */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cliente</label>
-                      <input type="text" placeholder="Nome" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold focus:border-blue-500 outline-none" value={cutClientName} onChange={(e) => setCutClientName(e.target.value)} />
+                      <input type="text" placeholder="Nome" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold focus:border-blue-500 outline-none text-sm" value={cutClientName} onChange={(e) => setCutClientName(e.target.value)} />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Projeto</label>
-                      <input type="text" placeholder="Ex: Pia" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold focus:border-blue-500 outline-none" value={cutProject} onChange={(e) => setCutProject(e.target.value)} />
+                      <input type="text" placeholder="Ex: Pia" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold focus:border-blue-500 outline-none text-sm" value={cutProject} onChange={(e) => setCutProject(e.target.value)} />
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-blue-600 uppercase ml-1 flex items-center gap-1"><Target size={12} /> Local do corte na chapa</label>
-                    <input type="text" placeholder="Ex: Canto Superior Direito" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-900 focus:border-blue-600 outline-none" value={cutLocationOnSlab} onChange={(e) => setCutLocationOnSlab(e.target.value)} />
+                    <input type="text" placeholder="Ex: Canto Superior Direito" className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-900 focus:border-blue-600 outline-none text-sm" value={cutLocationOnSlab} onChange={(e) => setCutLocationOnSlab(e.target.value)} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Local Instalação</label>
-                      <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none" value={cutInstallationLocation} onChange={(e) => setCutInstallationLocation(e.target.value)} />
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Instalação</label>
+                      <input type="text" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold outline-none text-sm" value={cutInstallationLocation} onChange={(e) => setCutInstallationLocation(e.target.value)} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Localização Sobra</label>
-                      <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none" value={cutNewSlabLocation} onChange={(e) => setCutNewSlabLocation(e.target.value)} />
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Nova Posição</label>
+                      <input type="text" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold outline-none text-sm" value={cutNewSlabLocation} onChange={(e) => setCutNewSlabLocation(e.target.value)} />
                     </div>
                   </div>
                 </div>
 
-                {/* Resumo de Área */}
-                <div className="bg-white p-4 rounded-3xl border border-slate-200 flex justify-around text-center shadow-sm">
+                {/* Resumo de Área Compacto */}
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex justify-around text-center shadow-sm">
                   <div>
-                    <p className="text-[8px] font-black text-slate-400 uppercase">Sobra (m²)</p>
-                    <p className="text-xl font-black text-slate-900">{currentArea.toFixed(3)}</p>
+                    <p className="text-[7px] font-black text-slate-400 uppercase mb-1">Área da Sobra</p>
+                    <p className="text-lg font-black text-slate-900 leading-none">{currentArea.toFixed(3)} m²</p>
                   </div>
                   <div className="w-px bg-slate-100"></div>
                   <div>
-                    <p className="text-[8px] font-black text-red-500 uppercase">Consumo (m²)</p>
-                    <p className="text-xl font-black text-red-600">{areaUsed.toFixed(3)}</p>
+                    <p className="text-[7px] font-black text-red-500 uppercase mb-1">Área Consumida</p>
+                    <p className="text-lg font-black text-red-600 leading-none">{areaUsed.toFixed(3)} m²</p>
                   </div>
                 </div>
               </div>
 
-              {/* Botões de Ação Fixos no Rodapé do Modal (Mobile/Desktop) */}
-              <div className="p-6 bg-white border-t border-slate-100 space-y-3 shrink-0">
-                <button onClick={() => handleRegisterCut(false)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-2">
-                  <CheckCircle2 size={20} /> SALVAR CORTE E SOBRA
+              {/* Botões de Ação Fixos no Rodapé */}
+              <div className="p-5 bg-white border-t border-slate-100 space-y-2 shrink-0">
+                <button onClick={() => handleRegisterCut(false)} className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-black uppercase shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-2 text-sm">
+                  <CheckCircle2 size={18} /> SALVAR PRODUÇÃO
                 </button>
-                <button onClick={() => handleRegisterCut(true)} className="w-full bg-slate-100 text-slate-500 py-3 rounded-xl font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 text-[11px]">
-                  <Zap size={16} /> USO TOTAL (SEM SOBRA)
+                <button onClick={() => handleRegisterCut(true)} className="w-full bg-slate-100 text-slate-500 py-2.5 rounded-xl font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 text-[10px]">
+                  <Zap size={14} /> USO TOTAL DA CHAPA
                 </button>
               </div>
             </div>

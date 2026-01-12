@@ -43,7 +43,10 @@ export const login = (email: string, password?: string): User | null => {
   const user = users.find(u => normalizeEmail(u.email) === cleanEmail);
   
   if (!user) {
-    throw new Error("E-mail não encontrado no sistema.");
+    // Log de depuração para o desenvolvedor ver no console do navegador
+    console.warn("Falha no Login: E-mail não encontrado.", { digitado: cleanEmail });
+    console.table(users.map(u => ({ nome: u.name, email_cadastrado: u.email })));
+    throw new Error("E-mail não encontrado. Verifique se digitou corretamente ou se o cadastro foi finalizado.");
   }
 
   // Comparação de senha

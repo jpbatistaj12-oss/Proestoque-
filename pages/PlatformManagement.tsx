@@ -67,10 +67,16 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const handleCreateAccount = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    if (!newName || !newEmail || !newCompany) return alert("Preencha os campos essenciais.");
+    
+    const cleanName = newName.trim();
+    const cleanEmail = newEmail.trim();
+    const cleanCompany = newCompany.trim();
+    const cleanPass = newPass.trim();
+
+    if (!cleanName || !cleanEmail || !cleanCompany) return alert("Preencha os campos essenciais.");
     
     try {
-      createCompanyAccount(newName, newEmail.trim(), newCompany, newPass.trim());
+      createCompanyAccount(cleanName, cleanEmail, cleanCompany, cleanPass || undefined);
       setCompanies(getAllCompanies());
       setShowAddModal(false);
       setNewName(''); setNewEmail(''); setNewCompany(''); setNewPass('');
