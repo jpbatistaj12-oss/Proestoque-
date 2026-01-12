@@ -22,15 +22,16 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      // Normalização imediata no submit
+      // Normalização rigorosa no momento do envio
       const cleanEmail = email.trim().toLowerCase();
+      const cleanPass = password.trim();
       
-      if (!cleanEmail || !password.trim()) {
+      if (!cleanEmail || !cleanPass) {
         setLoading(false);
         return setError('E-mail e senha são obrigatórios.');
       }
       
-      const user = login(cleanEmail, password, activeRole);
+      const user = login(cleanEmail, cleanPass, activeRole);
       if (user) {
         onLogin(user);
       }
@@ -59,12 +60,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         {/* Seletor de Perfil (Administrador vs Operador) */}
         <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
            <button 
+             type="button"
              onClick={() => { setActiveRole(UserRole.ADMIN); setError(null); }}
              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.ADMIN ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
            >
              <Shield size={14} /> Administrador
            </button>
            <button 
+             type="button"
              onClick={() => { setActiveRole(UserRole.OPERATOR); setError(null); }}
              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.OPERATOR ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
            >
@@ -92,9 +95,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 placeholder="exemplo@gmail.com"
                 className="w-full pl-12 pr-4 py-4.5 bg-slate-50 border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm"
                 value={email}
-                onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
-                autoCapitalize="off"
+                autoComplete="email"
               />
             </div>
           </div>
@@ -110,6 +113,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
+                autoComplete="current-password"
               />
               <button 
                 type="button"
@@ -124,9 +128,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <button 
             type="submit"
             disabled={loading}
-            className={`w-full bg-slate-900 text-white py-5.5 rounded-[2rem] font-black flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 mt-6 uppercase tracking-widest text-sm ${loading ? 'opacity-50' : 'hover:bg-blue-600'}`}
+            className={`w-full bg-slate-900 text-white py-5.5 rounded-[2rem] font-black flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 mt-6 uppercase tracking-widest text-sm ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
           >
-            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <><LogIn size={20} /> ENTRAR NO SISTEMA</>}
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <><LogIn size={20} /> ENTRAR NO SISTEMA</>
+            )}
           </button>
         </form>
 
@@ -134,7 +142,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
              <Info size={12} className="text-blue-500" />
              <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest">
-               Problemas? Clique em F12 {'>'} Console para Diagnóstico.
+               Problemas? Clique em F12 {'>'} Console para Conferência.
              </p>
            </div>
         </div>
