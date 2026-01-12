@@ -12,8 +12,8 @@ const KEYS = {
   SESSION: 'marm_active_session'
 };
 
-const normalizeEmail = (email: string) => email ? email.trim().toLowerCase() : '';
-const normalizePassword = (pass: string) => pass ? pass.trim() : '';
+// Normalização ultra-robusta
+const normalize = (str: string | undefined) => str ? str.trim().toLowerCase().replace(/\s/g, '') : '';
 
 export const getCurrentUser = (): User | null => {
   const session = localStorage.getItem(KEYS.SESSION);
@@ -21,15 +21,15 @@ export const getCurrentUser = (): User | null => {
 };
 
 export const login = (email: string, password?: string): User | null => {
-  const cleanEmail = normalizeEmail(email);
-  const cleanPassword = normalizePassword(password || '');
+  const cleanEmail = normalize(email);
+  const cleanPassword = (password || '').trim();
   
-  // Login especial de Super Admin
-  if (cleanEmail === 'admin@marmoraria.control' && cleanPassword === 'marm@2025') {
+  // Login de Super Admin
+  if (cleanEmail === normalize('admin@marmoraria.control') && cleanPassword === 'marm@2025') {
     const superAdmin: User = {
       id: 'SUPER-001',
       name: 'Administrador Central',
-      email: cleanEmail,
+      email: email.trim().toLowerCase(),
       role: UserRole.SUPER_ADMIN,
       companyId: 'PLATFORM_OWNER'
     };
@@ -39,32 +39,25 @@ export const login = (email: string, password?: string): User | null => {
 
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   
-  // Busca exata com email normalizado
-  const user = users.find(u => normalizeEmail(u.email) === cleanEmail);
+  // Debug para o desenvolvedor no console
+  console.log("Tentativa de login:", cleanEmail);
+  console.log("Usuários cadastrados no sistema:", users.map(u => ({ nome: u.name, email: u.email, email_normalizado: normalize(u.email) })));
+
+  const user = users.find(u => normalize(u.email) === cleanEmail);
   
   if (!user) {
-    // Log de depuração para o desenvolvedor ver no console do navegador
-    console.warn("Falha no Login: E-mail não encontrado.", { digitado: cleanEmail });
-    console.table(users.map(u => ({ nome: u.name, email_cadastrado: u.email })));
-    throw new Error("E-mail não encontrado. Verifique se digitou corretamente ou se o cadastro foi finalizado.");
+    throw new Error("E-mail não encontrado. Verifique se o cadastro foi finalizado ou se há espaços extras.");
   }
 
-  // Comparação de senha
   if (user.password !== cleanPassword) {
-    throw new Error("Senha incorreta. Verifique se o Caps Lock está ativado.");
+    throw new Error("Senha incorreta. Verifique o Caps Lock.");
   }
 
-  // Verificação de Empresa
   const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
   const company = companies.find(c => c.id === user.companyId);
 
-  if (!company) {
-    throw new Error("Sua conta não possui uma empresa vinculada ativa.");
-  }
-
-  if (company.status === CompanyStatus.SUSPENDED) {
-    throw new Error("Esta unidade está suspensa. Entre em contato com o suporte.");
-  }
+  if (!company) throw new Error("Empresa não encontrada para este usuário.");
+  if (company.status === CompanyStatus.SUSPENDED) throw new Error("Acesso suspenso por falta de pagamento.");
 
   const { password: _, ...userWithoutPassword } = user;
   localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
@@ -72,18 +65,18 @@ export const login = (email: string, password?: string): User | null => {
 };
 
 export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
-  const cleanEmail = normalizeEmail(email);
-  const cleanPassword = normalizePassword(password || 'marm123');
-  const companyId = `COMP-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-  const adminId = `USR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-  
   const companies = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
   const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
 
-  if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
-    throw new Error("Este e-mail já está sendo utilizado por outra empresa.");
+  const cleanEmail = email.trim().toLowerCase();
+  
+  if (users.some((u: StoredUser) => normalize(u.email) === normalize(cleanEmail))) {
+    throw new Error("Este e-mail já possui um cadastro ativo.");
   }
 
+  const companyId = `COMP-${Date.now().toString(36).toUpperCase()}`;
+  const adminId = `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  
   const newCompany: Company = { 
     id: companyId, 
     name: companyName.trim(), 
@@ -99,7 +92,7 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
     email: cleanEmail, 
     role: UserRole.ADMIN, 
     companyId,
-    password: cleanPassword
+    password: (password || 'joao123').trim()
   };
 
   companies.push(newCompany);
@@ -109,56 +102,8 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 };
 
-export const getCompanyAdminCredentials = (companyId: string): StoredUser | null => {
-  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  return users.find(u => u.companyId === companyId && u.role === UserRole.ADMIN) || null;
-};
-
-export const getAllCompanies = (): Company[] => {
-  const companies = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
-  return companies.map((c: any) => ({ ...c, monthlyFee: c.monthlyFee || 299 }));
-};
-
-export const updateCompanyStatus = (companyId: string, status: CompanyStatus): void => {
-  const companies = getAllCompanies();
-  const index = companies.findIndex(c => c.id === companyId);
-  if (index >= 0) {
-    companies[index].status = status;
-    localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
-  }
-};
-
-export const updateCompanyFee = (companyId: string, fee: number): void => {
-  const companies = getAllCompanies();
-  const index = companies.findIndex(c => c.id === companyId);
-  if (index >= 0) {
-    companies[index].monthlyFee = fee;
-    localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
-  }
-};
-
-export const logout = () => localStorage.removeItem(KEYS.SESSION);
-
-export const getTeamMembers = (companyId: string): User[] => {
-  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  return users.filter(u => u.companyId === companyId).map(({ password, ...rest }) => rest);
-};
-
-export const addTeamMember = (name: string, email: string, role: UserRole, companyId: string, password?: string): void => {
-  const cleanEmail = normalizeEmail(email);
-  const cleanPassword = normalizePassword(password || 'marm123');
-  const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  
-  if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
-    throw new Error("Este e-mail já está em uso.");
-  }
-
-  const newUser: StoredUser = {
-    id: `USR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-    name: name.trim(), email: cleanEmail, role, companyId, password: cleanPassword
-  };
-  users.push(newUser);
-  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+export const logout = () => {
+  localStorage.removeItem(KEYS.SESSION);
 };
 
 export const getInventory = (companyId: string): InventoryItem[] => {
@@ -182,4 +127,52 @@ export const saveItem = (item: InventoryItem): void => {
 
 export const getItemById = (id: string, companyId: string): InventoryItem | undefined => {
   return getInventory(companyId).find(i => i.id === id);
+};
+
+export const getTeamMembers = (companyId: string): User[] => {
+  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  return users.filter(u => u.companyId === companyId).map(({ password, ...rest }) => rest);
+};
+
+export const addTeamMember = (name: string, email: string, role: UserRole, companyId: string, password?: string): void => {
+  const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (users.some((u: StoredUser) => normalize(u.email) === normalize(cleanEmail))) {
+    throw new Error("E-mail já cadastrado na equipe.");
+  }
+
+  const newUser: StoredUser = {
+    id: `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+    name: name.trim(), email: cleanEmail, role, companyId, password: (password || 'marm123').trim()
+  };
+  users.push(newUser);
+  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+};
+
+export const getAllCompanies = (): Company[] => {
+  return JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
+};
+
+export const updateCompanyStatus = (id: string, status: CompanyStatus) => {
+  const companies = getAllCompanies();
+  const index = companies.findIndex(c => c.id === id);
+  if (index >= 0) {
+    companies[index].status = status;
+    localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
+  }
+};
+
+export const updateCompanyFee = (id: string, fee: number) => {
+  const companies = getAllCompanies();
+  const index = companies.findIndex(c => c.id === id);
+  if (index >= 0) {
+    companies[index].monthlyFee = fee;
+    localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
+  }
+};
+
+export const getCompanyAdminCredentials = (companyId: string): StoredUser | null => {
+  const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  return users.find(u => u.companyId === companyId && u.role === UserRole.ADMIN) || null;
 };
