@@ -54,10 +54,14 @@ export interface CutHistoryRecord {
   date: string;
   project: string;
   clientName: string;
+  installationLocation?: string;
+  cutLocationOnSlab?: string; 
   areaUsed: number;
   leftoverWidth: number;
   leftoverHeight: number;
   leftoverPoints?: Point[];
+  piecePhoto?: string;    // Foto da peça que saiu para o cliente
+  leftoverPhoto?: string; // Foto de como ficou a sobra
   observations?: string;
   operatorId: string;
   operatorName: string;

@@ -4,9 +4,9 @@ import { InventoryItem, StockStatus, CutHistoryRecord, Point, User } from '../ty
 import { getItemById, saveItem, getCurrentUser } from '../services/storageService';
 import { STATUS_COLORS } from '../constants';
 import { 
-  ArrowLeft, Scissors, Printer, Plus, Undo2, Trash2, Ruler, Eye, MapPin, 
-  CheckCircle2, X as XIcon, Zap, MousePointerClick, ChevronLeft, ChevronRight,
-  Maximize
+  ArrowLeft, Scissors, Printer, Plus, Undo2, Trash2, MapPin, 
+  CheckCircle2, X as XIcon, Zap, ChevronLeft, ChevronRight,
+  Maximize, Move, MapPinned, Info, Target, Camera, Image as ImageIcon
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -95,39 +95,44 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
   const [showCutModal, setShowCutModal] = useState(false);
   const [cutProject, setCutProject] = useState('');
   const [cutClientName, setCutClientName] = useState('');
-  const [cutObservations, setCutObservations] = useState('');
+  const [cutInstallationLocation, setCutInstallationLocation] = useState('');
+  const [cutLocationOnSlab, setCutLocationOnSlab] = useState('');
+  const [cutNewSlabLocation, setCutNewSlabLocation] = useState('');
+  const [cutPiecePhoto, setCutPiecePhoto] = useState<string | undefined>();
+  const [cutLeftoverPhoto, setCutLeftoverPhoto] = useState<string | undefined>();
+  
   const [user, setUser] = useState<User | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const wasDraggingRef = useRef(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activePhotoType, setActivePhotoType] = useState<'piece' | 'leftover' | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
     
-    // Busca o item usando o companyId fornecido (que pode ser o impersonatedCompanyId)
     const foundItem = getItemById(itemId, companyId);
     if (foundItem) {
       setItem(foundItem);
+      setCutNewSlabLocation(foundItem.location || '');
     } else {
       setItem(undefined);
     }
   }, [itemId, companyId]);
 
-  if (!item) return <div className="p-10 text-center font-bold text-slate-500">Material não encontrado.</div>;
-
-  const currentArea = calculatePolygonArea(drawingPoints);
-  const areaUsed = Number((item.availableArea - (drawingPoints.length > 0 ? currentArea : 0)).toFixed(4));
-
-  const handleAddPoint = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
+  const getCanvasCoords = (e: React.MouseEvent | MouseEvent) => {
+    if (!svgRef.current || !item) return null;
     const rect = svgRef.current.getBoundingClientRect();
     const rawX = e.clientX - rect.left;
     const rawY = e.clientY - rect.top;
 
     const maxDim = Math.max(item.currentWidth, item.currentHeight);
-    const canvasSize = window.innerWidth < 640 ? 300 : 380;
-    const padding = 40;
+    const canvasSize = window.innerWidth < 640 ? 280 : 340;
+    const padding = 30;
     const scale = (canvasSize - padding) / maxDim;
     const offsetX = (canvasSize - item.currentWidth * scale) / 2;
     const offsetY = (canvasSize - item.currentHeight * scale) / 2;
@@ -135,12 +140,77 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
     const cmX = Math.max(0, Math.min(item.currentWidth, Math.round((rawX - offsetX) / scale)));
     const cmY = Math.max(0, Math.min(item.currentHeight, Math.round((rawY - offsetY) / scale)));
 
-    if (drawingPoints.length > 0) {
-      const last = drawingPoints[drawingPoints.length - 1];
-      if (last.x === cmX && last.y === cmY) return;
+    return { x: cmX, y: cmY };
+  };
+
+  const handleGlobalMouseMove = (e: MouseEvent) => {
+    if (draggingIdx === null) return;
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+
+    const currentPoint = drawingPoints[draggingIdx];
+    if (currentPoint && (currentPoint.x !== coords.x || currentPoint.y !== coords.y)) {
+        wasDraggingRef.current = true;
     }
 
-    setDrawingPoints(prev => [...prev, { x: cmX, y: cmY }]);
+    setDrawingPoints(prev => {
+      const updated = [...prev];
+      if (updated[draggingIdx]) {
+        updated[draggingIdx] = coords;
+      }
+      return updated;
+    });
+  };
+
+  const handleGlobalMouseUp = () => {
+    if (draggingIdx !== null) {
+        setTimeout(() => {
+            setDraggingIdx(null);
+        }, 50);
+    }
+  };
+
+  useEffect(() => {
+    if (draggingIdx !== null) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+    } else {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [draggingIdx, drawingPoints, item]);
+
+  if (!item) {
+    return <div className="p-10 text-center font-bold text-slate-500 animate-pulse">Carregando material...</div>;
+  }
+
+  const currentArea = calculatePolygonArea(drawingPoints);
+  const areaUsed = Number((item.availableArea - (drawingPoints.length > 0 ? currentArea : 0)).toFixed(4));
+
+  const handleAddPoint = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (wasDraggingRef.current) {
+        wasDraggingRef.current = false;
+        return;
+    }
+    if (draggingIdx !== null) return;
+    const coords = getCanvasCoords(e);
+    if (!coords) return;
+    if (drawingPoints.length > 0) {
+      const last = drawingPoints[drawingPoints.length - 1];
+      if (last.x === coords.x && last.y === coords.y) return;
+    }
+    setDrawingPoints(prev => [...prev, coords]);
+  };
+
+  const handlePointMouseDown = (idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDraggingIdx(idx);
+    wasDraggingRef.current = false;
   };
 
   const updateSegmentLength = (index: number, newLength: number) => {
@@ -151,12 +221,8 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
     let currentDist = calculateDistance(p1, p2);
     
     const newPoints = [...drawingPoints];
-    
     if (currentDist === 0) {
-      newPoints[nextIndex] = {
-        x: Math.round(p1.x + newLength),
-        y: p1.y
-      };
+      newPoints[nextIndex] = { x: Math.round(p1.x + newLength), y: p1.y };
     } else {
       const ratio = newLength / currentDist;
       newPoints[nextIndex] = {
@@ -164,20 +230,38 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
         y: Math.round(p1.y + (p2.y - p1.y) * ratio)
       };
     }
-    
     newPoints[nextIndex].x = Math.max(0, Math.min(item.currentWidth, newPoints[nextIndex].x));
     newPoints[nextIndex].y = Math.max(0, Math.min(item.currentHeight, newPoints[nextIndex].y));
-    
     setDrawingPoints(newPoints);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && activePhotoType) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          if (activePhotoType === 'piece') setCutPiecePhoto(event.target.result as string);
+          else setCutLeftoverPhoto(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    setActivePhotoType(null);
+  };
+
+  const triggerUpload = (type: 'piece' | 'leftover') => {
+    setActivePhotoType(type);
+    fileInputRef.current?.click();
   };
 
   const handleRegisterCut = (isTotal: boolean = false) => {
     if (!isTotal && drawingPoints.length < 3) {
-      alert('Desenhe pelo menos 3 pontos para definir a sobra ou clique em "Uso Total".');
+      alert('Desenhe pelo menos 3 pontos para definir a sobra.');
       return;
     }
     if (!cutProject || !cutClientName) {
-      alert('Por favor, informe o Nome do Cliente e o Projeto.');
+      alert('Informe o Nome do Cliente e o Projeto.');
       return;
     }
     if (!user) return;
@@ -191,23 +275,31 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
       date: new Date().toISOString().split('T')[0],
       project: cutProject,
       clientName: cutClientName,
+      installationLocation: cutInstallationLocation,
+      cutLocationOnSlab: cutLocationOnSlab,
       areaUsed: usedArea,
       leftoverWidth: isTotal ? 0 : Math.max(...finalPoints.map(p => p.x)),
       leftoverHeight: isTotal ? 0 : Math.max(...finalPoints.map(p => p.y)),
       leftoverPoints: finalPoints,
-      observations: isTotal ? 'Uso Total da Chapa (Sem sobras)' : cutObservations,
+      piecePhoto: cutPiecePhoto,
+      leftoverPhoto: cutLeftoverPhoto,
       operatorId: user.id,
       operatorName: user.name
     };
+
+    const updatedPhotos = [...item.photos];
+    if (cutLeftoverPhoto) updatedPhotos.unshift(cutLeftoverPhoto);
 
     const updatedItem: InventoryItem = {
       ...item,
       currentWidth: newHistory.leftoverWidth,
       currentHeight: newHistory.leftoverHeight,
+      location: cutNewSlabLocation || item.location,
       shapePoints: finalPoints,
       availableArea: finalArea,
       status: isTotal || finalArea < 0.05 ? StockStatus.FINALIZADA : StockStatus.COM_SOBRA,
       history: [newHistory, ...item.history],
+      photos: updatedPhotos.slice(0, 5),
       lastOperatorId: user.id,
       lastOperatorName: user.name,
       lastUpdatedAt: new Date().toISOString()
@@ -216,21 +308,24 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
     saveItem(updatedItem);
     setItem(updatedItem);
     setShowCutModal(false);
+    resetCutForm();
     onUpdate();
   };
 
-  const nextPhoto = () => {
-    if (!item.photos.length) return;
-    setActivePhotoIdx((prev) => (prev + 1) % item.photos.length);
-  };
-
-  const prevPhoto = () => {
-    if (!item.photos.length) return;
-    setActivePhotoIdx((prev) => (prev - 1 + item.photos.length) % item.photos.length);
+  const resetCutForm = () => {
+    setCutProject('');
+    setCutClientName('');
+    setCutInstallationLocation('');
+    setCutLocationOnSlab('');
+    setCutPiecePhoto(undefined);
+    setCutLeftoverPhoto(undefined);
+    setDrawingPoints([]);
   };
 
   return (
     <div className="pb-10 animate-fadeIn px-1 sm:px-0">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+      
       <div className="flex items-center justify-between mb-6">
         <button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors no-print">
           <ArrowLeft size={18} />
@@ -241,54 +336,26 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
         </button>
       </div>
 
+      {/* Item Detail Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
             <div className="flex flex-col md:flex-row">
               <div className="md:w-1/3 p-4 space-y-4 border-b md:border-b-0 md:border-r border-slate-50 bg-slate-50/50">
                 <div className="relative aspect-square w-full group">
-                  <img 
-                    src={item.photos[activePhotoIdx]} 
-                    className="w-full h-full object-cover rounded-2xl shadow-sm border-2 border-white transition-all duration-300" 
-                    alt={`Foto ${activePhotoIdx + 1}`} 
-                  />
-                  
+                  <img src={item.photos[activePhotoIdx]} className="w-full h-full object-cover rounded-2xl shadow-sm border-2 border-white transition-all duration-300" alt={`Foto ${activePhotoIdx + 1}`} />
                   {item.photos.length > 1 && (
                     <>
-                      <button 
-                        onClick={prevPhoto} 
-                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <button onClick={() => setActivePhotoIdx((prev) => (prev - 1 + item.photos.length) % item.photos.length)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                         <ChevronLeft size={16} />
                       </button>
-                      <button 
-                        onClick={nextPhoto} 
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <button onClick={() => setActivePhotoIdx((prev) => (prev + 1) % item.photos.length)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                         <ChevronRight size={16} />
                       </button>
-                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                        {item.photos.map((_, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`h-1.5 rounded-full transition-all ${idx === activePhotoIdx ? 'w-4 bg-blue-600' : 'w-1.5 bg-slate-300'}`}
-                          />
-                        ))}
-                      </div>
                     </>
                   )}
                 </div>
-
-                <ShapeRenderer 
-                  points={item.shapePoints || []} 
-                  containerW={240} 
-                  containerH={240}
-                  originalW={item.currentWidth || item.originalWidth}
-                  originalH={item.currentHeight || item.originalHeight}
-                  label="Geometria Atual"
-                  showMeasurements
-                  className="!p-2 !rounded-2xl"
-                />
+                <ShapeRenderer points={item.shapePoints || []} containerW={240} containerH={240} originalW={item.currentWidth || item.originalWidth} originalH={item.currentHeight || item.originalHeight} label="Geometria Atual" showMeasurements className="!p-2 !rounded-2xl" />
               </div>
               <div className="md:w-2/3 p-6 sm:p-8 space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
@@ -300,25 +367,16 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
                     {item.status}
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4 pt-6 border-t border-slate-50">
-                  <div className="space-y-1">
-                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Espessura</p>
-                    <p className="font-bold text-slate-700 text-sm">{item.thickness}</p>
-                  </div>
                   <div className="space-y-1">
                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Medidas Max</p>
                     <p className="font-black text-blue-600 text-sm">{item.currentWidth}×{item.currentHeight} cm</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Originais</p>
-                    <p className="font-bold text-slate-500 text-sm">{item.originalWidth}×{item.originalHeight} cm</p>
-                  </div>
-                  <div className="space-y-1">
                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Disponível</p>
                     <p className="font-black text-emerald-600 text-sm">{item.availableArea.toFixed(2)} m²</p>
                   </div>
-                  <div className="space-y-1 col-span-2 sm:col-span-1">
+                  <div className="space-y-1">
                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Localização</p>
                     <div className="flex items-center gap-1.5 font-bold text-slate-500 text-sm">
                        <MapPin size={12} className="text-red-500" />
@@ -326,240 +384,191 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
                     </div>
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Uso do Material</span>
-                    <span className="text-[10px] font-black text-blue-600">{( (item.availableArea / item.totalArea) * 100).toFixed(1)}% RESTANTE</span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-700 shadow-sm" style={{ width: `${(item.availableArea / item.totalArea) * 100}%` }}></div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
 
           <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 sm:p-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-3 uppercase tracking-tight">
-                <Scissors size={20} className="text-blue-500" /> Histórico de Produção
-              </h3>
-              {item.status !== StockStatus.FINALIZADA && (
-                <button 
-                  onClick={() => { setDrawingPoints([]); setShowCutModal(true); }}
-                  className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg active:scale-95"
-                >
-                  <Plus size={16} /> REGISTRAR NOVO CORTE
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-4">
+            <h3 className="text-lg font-black text-slate-900 flex items-center gap-3 uppercase mb-8">
+              <Scissors size={20} className="text-blue-500" /> Histórico de Produção
+            </h3>
+            <div className="space-y-6">
               {item.history.length > 0 ? item.history.map((log) => (
-                <div key={log.id} className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-5 bg-slate-50 rounded-3xl border border-slate-100 items-start sm:items-center group">
-                  <div className="w-full sm:w-20 shrink-0">
-                     <ShapeRenderer points={log.leftoverPoints || []} containerW={window.innerWidth < 640 ? 100 : 80} containerH={window.innerWidth < 640 ? 100 : 80} originalW={log.leftoverWidth || item.originalWidth} originalH={log.leftoverHeight || item.originalHeight} className="!p-1 !rounded-xl" />
-                  </div>
-                  <div className="flex-1 min-w-0 w-full">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
-                      <div>
-                        <h4 className="font-black text-slate-900 text-base uppercase tracking-tight group-hover:text-blue-600 transition-colors">{log.project}</h4>
-                        <p className="text-[10px] text-blue-600 font-black uppercase tracking-tight">Cliente: {log.clientName}</p>
-                      </div>
-                      <div className="text-left sm:text-right bg-white sm:bg-transparent p-2 sm:p-0 rounded-xl border sm:border-0 border-slate-100 w-full sm:w-auto">
-                        <span className="text-sm font-black text-red-500 block">-{log.areaUsed.toFixed(2)} m²</span>
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SOBRA: {log.leftoverWidth}x{log.leftoverHeight}cm</span>
-                      </div>
+                <div key={log.id} className="flex flex-col gap-5 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100">
+                  <div className="flex flex-col sm:flex-row gap-6 items-center">
+                    <ShapeRenderer points={log.leftoverPoints || []} containerW={100} containerH={100} originalW={log.leftoverWidth || item.originalWidth} originalH={log.leftoverHeight || item.originalHeight} className="!p-1 !rounded-2xl" />
+                    <div className="flex-1 text-center sm:text-left">
+                      <h4 className="font-black text-slate-900 text-lg uppercase leading-tight">{log.project}</h4>
+                      <p className="text-[10px] text-blue-600 font-black uppercase">
+                        Cliente: {log.clientName} {log.installationLocation && `• Local: ${log.installationLocation}`}
+                      </p>
+                    </div>
+                    <div className="text-center sm:text-right">
+                      <span className="text-base font-black text-red-500 block">-{log.areaUsed.toFixed(2)} m²</span>
+                      <span className="text-[10px] text-slate-400 font-black">{log.date}</span>
                     </div>
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-16 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nenhuma produção registrada.</p>
-                </div>
+                <div className="text-center py-10 text-slate-400 text-xs font-bold uppercase tracking-widest">Sem registros de produção.</div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 flex flex-col items-center justify-center text-center sticky top-24 h-fit">
-          <p className="text-[10px] font-black text-slate-400 uppercase mb-6 tracking-[0.2em]">Etiqueta de Oficina</p>
-          <div className="p-4 border-4 border-slate-900 rounded-[2.5rem] mb-6 shadow-xl bg-white">
-            <QRCodeSVG value={`MARM-ID:${item.id}`} size={160} />
-          </div>
-          <p className="text-2xl font-black text-slate-900 tracking-tighter mb-1">{item.id}</p>
-          <p className="text-[10px] font-black text-slate-500 mb-6 uppercase tracking-widest">{item.commercialName}</p>
-          <div className="bg-slate-900 text-white w-full py-4 rounded-2xl font-black text-xl shadow-lg uppercase tracking-tighter">
+        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 flex flex-col items-center justify-center text-center h-fit sticky top-8">
+          <QRCodeSVG value={`MARM-ID:${item.id}`} size={160} className="mb-6" />
+          <p className="text-2xl font-black text-slate-900 mb-1">{item.id}</p>
+          <div className="bg-slate-900 text-white w-full py-4 rounded-2xl font-black text-xl shadow-lg uppercase mb-6">
             {item.currentWidth} × {item.currentHeight}
           </div>
+          {item.status !== StockStatus.FINALIZADA && (
+            <button onClick={() => { resetCutForm(); setShowCutModal(true); }} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg active:scale-95">
+              <Scissors size={20} /> NOVO CORTE
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Cut Modal Refinado */}
       {showCutModal && (
-        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl overflow-hidden shadow-2xl flex flex-col lg:flex-row min-h-full sm:min-h-0 sm:h-[90vh] lg:max-h-[920px] animate-popIn border border-white/10 relative">
-            <button onClick={() => setShowCutModal(false)} className="absolute top-4 right-4 z-[110] text-slate-400 hover:text-slate-900 p-2 sm:p-3 bg-white/90 backdrop-blur rounded-2xl transition-all border border-slate-200 shadow-xl">
-              <XIcon size={20} />
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-7xl overflow-hidden shadow-2xl flex flex-col lg:flex-row animate-popIn border border-white/10 relative max-h-[95vh]">
+            <button onClick={() => setShowCutModal(false)} className="absolute top-4 right-4 z-[110] text-slate-400 hover:text-slate-900 p-2 bg-white rounded-2xl shadow-xl">
+              <XIcon size={24} />
             </button>
-
-            <div className="bg-slate-900 lg:w-[62%] p-5 sm:p-8 flex flex-col h-full border-r border-white/5 min-h-[500px] sm:min-h-0 overflow-y-auto sm:overflow-hidden">
-               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                 <div>
-                   <h3 className="text-white text-base sm:text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                     <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20"><MousePointerClick size={18} className="text-white" /></div>
-                     Mapear Retalho
-                   </h3>
-                   <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-1">Clique na área abaixo para definir os pontos do retalho</p>
-                 </div>
-                 <div className="flex gap-2 w-full sm:w-auto">
-                   <button onClick={() => setDrawingPoints(prev => prev.slice(0, -1))} className="flex-1 sm:flex-none bg-slate-800 text-slate-300 px-4 py-3 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-lg flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest" disabled={drawingPoints.length === 0}><Undo2 size={14} /> Desfazer</button>
-                   <button onClick={() => setDrawingPoints([])} className="flex-1 sm:flex-none bg-slate-800 text-red-400 px-4 py-3 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg flex items-center justify-center gap-2 font-black text-[9px] uppercase tracking-widest" disabled={drawingPoints.length === 0}><Trash2 size={14} /> Limpar</button>
-                 </div>
-               </div>
+            
+            {/* Esquerda: Editor Visual (Fixado) */}
+            <div className="bg-slate-900 lg:w-[50%] p-5 sm:p-8 flex flex-col border-r border-white/5 overflow-y-auto lg:overflow-visible">
+               <h3 className="text-white text-base sm:text-xl font-black uppercase tracking-tight flex items-center gap-3 mb-4">
+                 <Move size={18} className="text-blue-500" /> Geometria da Sobra
+               </h3>
                
-               <div className="flex-1 flex items-center justify-center bg-slate-950/40 rounded-[2rem] border border-white/5 relative overflow-hidden group shadow-inner min-h-[300px] sm:min-h-0">
-                 <div className="absolute inset-0 opacity-10 pointer-events-none">
-                    <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle, #3b82f6 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
-                 </div>
-
-                 <svg ref={svgRef} width={window.innerWidth < 640 ? 300 : 380} height={window.innerWidth < 640 ? 300 : 380} className="cursor-crosshair overflow-visible z-10 drop-shadow-2xl" onClick={handleAddPoint}>
+               <div className="flex-1 flex items-center justify-center bg-slate-950/40 rounded-[2rem] border border-white/5 relative overflow-hidden group shadow-inner min-h-[300px] mb-4">
+                 <svg ref={svgRef} width={window.innerWidth < 640 ? 280 : 340} height={window.innerWidth < 640 ? 280 : 340} className="cursor-crosshair overflow-visible z-10" onClick={handleAddPoint}>
                    <rect width="100%" height="100%" fill="transparent" />
                    {drawingPoints.length > 0 && (
                      <>
                       <polygon points={drawingPoints.map(p => {
-                          const canvasSize = window.innerWidth < 640 ? 300 : 380;
-                          const scale = (canvasSize - 40) / Math.max(item.currentWidth, item.currentHeight);
-                          const ox = (canvasSize - item.currentWidth * scale) / 2;
-                          const oy = (canvasSize - item.currentHeight * scale) / 2;
+                          const size = window.innerWidth < 640 ? 280 : 340;
+                          const scale = (size - 30) / Math.max(item.currentWidth, item.currentHeight);
+                          const ox = (size - item.currentWidth * scale) / 2;
+                          const oy = (size - item.currentHeight * scale) / 2;
                           return `${ox + p.x * scale},${oy + p.y * scale}`;
-                        }).join(' ')} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="3" strokeLinejoin="round" />
+                        }).join(' ')} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="3" />
                       {drawingPoints.map((p, i) => {
-                        const canvasSize = window.innerWidth < 640 ? 300 : 380;
-                        const scale = (canvasSize - 40) / Math.max(item.currentWidth, item.currentHeight);
-                        const ox = (canvasSize - item.currentWidth * scale) / 2;
-                        const oy = (canvasSize - item.currentHeight * scale) / 2;
-                        const nextP = drawingPoints[(i + 1) % drawingPoints.length];
-                        const midX = ox + ((p.x + nextP.x) / 2) * scale;
-                        const midY = oy + ((p.y + nextP.y) / 2) * scale;
-                        const dist = calculateDistance(p, nextP);
+                        const size = window.innerWidth < 640 ? 280 : 340;
+                        const scale = (size - 30) / Math.max(item.currentWidth, item.currentHeight);
+                        const ox = (size - item.currentWidth * scale) / 2;
+                        const oy = (size - item.currentHeight * scale) / 2;
                         return (
-                          <g key={i}>
-                            <circle cx={ox + p.x * scale} cy={oy + p.y * scale} r="6" fill="#3b82f6" className="stroke-slate-950 stroke-[3px]" />
-                            {drawingPoints.length > 1 && (
-                               <g className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <rect x={midX - 18} y={midY - 9} width="36" height="18" rx="6" fill="#1e293b" />
-                                 <text x={midX} y={midY + 3} fill="#60a5fa" fontSize="8" fontWeight="900" textAnchor="middle">{Math.round(dist)}</text>
-                               </g>
-                            )}
-                          </g>
+                          <circle key={i} cx={ox + p.x * scale} cy={oy + p.y * scale} r={draggingIdx === i ? 12 : 8} fill={draggingIdx === i ? "#60a5fa" : "#3b82f6"} className="stroke-slate-950 stroke-[3px] cursor-grab active:cursor-grabbing transition-all" onMouseDown={(e) => handlePointMouseDown(i, e)} />
                         );
                       })}
                      </>
                    )}
                  </svg>
-                 
-                 <div className="absolute top-4 left-4 sm:top-6 sm:left-6 bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
-                   <p className="text-[8px] text-blue-400 font-black uppercase tracking-widest mb-1">Peça Atual</p>
-                   <p className="text-white text-base sm:text-xl font-black">{item.currentWidth}×{item.currentHeight} cm</p>
+                 <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-xl border border-white/10 text-white font-black text-[10px] uppercase">
+                   {item.currentWidth}×{item.currentHeight} cm
                  </div>
                </div>
 
-               <div className="mt-6 bg-slate-950/40 p-4 sm:p-5 rounded-[1.5rem] border border-white/5">
-                 <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest block mb-4">Ajustar Lados (cm)</span>
-                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+               <div className="bg-slate-950/40 p-4 rounded-2xl border border-white/5 overflow-x-auto whitespace-nowrap mb-4">
+                 <p className="text-[9px] text-slate-400 font-black uppercase mb-2">Ajuste de Lados (cm)</p>
+                 <div className="flex gap-3">
                     {drawingPoints.length > 1 ? drawingPoints.map((p, idx) => {
                         const dist = Math.round(calculateDistance(p, drawingPoints[(idx + 1) % drawingPoints.length]));
                         return (
-                          <div key={idx} className="shrink-0 bg-slate-900/80 p-3 rounded-xl border border-white/5 min-w-[100px]">
+                          <div key={idx} className="shrink-0 bg-slate-900 p-2.5 rounded-xl border border-white/5 min-w-[80px] text-center">
                             <span className="text-[7px] text-slate-500 font-black uppercase block mb-1">Lado {idx+1}</span>
-                            <input 
-                              type="number" 
-                              className="bg-slate-950 text-white font-black text-base p-2 rounded-lg border border-white/5 w-full text-center outline-none focus:border-blue-500" 
-                              value={dist || ''} 
-                              onChange={(e) => updateSegmentLength(idx, Number(e.target.value))} 
-                              placeholder="0"
-                            />
+                            <input type="number" className="bg-slate-950 text-white font-black text-xs p-1 rounded-lg border border-white/5 w-full text-center outline-none focus:border-blue-500" value={dist || ''} onChange={(e) => updateSegmentLength(idx, Number(e.target.value))} />
                           </div>
                         );
-                    }) : <p className="text-slate-600 text-[9px] font-bold uppercase italic py-4">Clique acima para iniciar o desenho do retalho...</p>}
+                    }) : <p className="text-slate-600 text-[9px] font-bold uppercase py-2">Inicie clicando no desenho...</p>}
                  </div>
+               </div>
+
+               <div className="flex gap-2">
+                 <button onClick={() => setDrawingPoints(prev => prev.slice(0, -1))} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Undo2 size={14} /> Desfazer</button>
+                 <button onClick={() => setDrawingPoints([])} className="bg-slate-800 text-red-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2"><Trash2 size={14} /> Limpar</button>
                </div>
             </div>
 
-            <div className="lg:w-[38%] p-6 sm:p-10 flex flex-col bg-slate-50 overflow-y-auto">
-              <div className="space-y-6 flex-1">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Dados do Corte</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Registro de Produção</p>
+            {/* Direita: Formulário (Rolagem Independente) */}
+            <div className="lg:w-[50%] flex flex-col h-full bg-slate-50">
+              <div className="flex-1 p-6 sm:p-8 overflow-y-auto space-y-6 pb-24 lg:pb-8">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Registro Técnico</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Dados da produção e controle fotográfico</p>
+                </div>
+
+                {/* Seção de Fotos Compacta */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto da Peça</label>
+                      <button onClick={() => triggerUpload('piece')} className={`w-full aspect-[4/3] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden relative group ${cutPiecePhoto ? 'border-transparent' : 'border-slate-300 hover:bg-blue-50'}`}>
+                        {cutPiecePhoto ? <img src={cutPiecePhoto} className="w-full h-full object-cover" /> : <Camera size={20} className="text-slate-400" />}
+                      </button>
                   </div>
-                  {drawingPoints.length >= 3 && (
-                    <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl animate-pulse">
-                      <CheckCircle2 size={24} />
-                    </div>
-                  )}
-                </div>
-
-                {/* PRÉVIA VISUAL EM TEMPO REAL */}
-                <div className="bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between px-2">
-                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                      <Maximize size={12} className="text-blue-500" /> Prévia da Sobra
-                    </p>
-                    {drawingPoints.length < 3 && (
-                      <span className="text-[8px] font-black text-amber-500 uppercase">Desenhe 3 pontos</span>
-                    )}
+                  <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto da Sobra</label>
+                      <button onClick={() => triggerUpload('leftover')} className={`w-full aspect-[4/3] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden relative group ${cutLeftoverPhoto ? 'border-transparent' : 'border-slate-300 hover:bg-emerald-50'}`}>
+                        {cutLeftoverPhoto ? <img src={cutLeftoverPhoto} className="w-full h-full object-cover" /> : <Camera size={20} className="text-slate-400" />}
+                      </button>
                   </div>
-                  <ShapeRenderer 
-                    points={drawingPoints} 
-                    containerW={window.innerWidth < 640 ? 260 : 320} 
-                    containerH={window.innerWidth < 640 ? 180 : 200}
-                    originalW={item.currentWidth}
-                    originalH={item.currentHeight}
-                    highlightColor="#10b981"
-                    className="!bg-slate-50 !border-slate-100 !shadow-none !p-2"
-                  />
-                  {drawingPoints.length >= 3 && (
-                    <div className="text-center">
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                         {Math.max(...drawingPoints.map(p => p.x))} x {Math.max(...drawingPoints.map(p => p.y))} cm
-                       </p>
-                    </div>
-                  )}
                 </div>
 
-                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Sobra m²</p>
-                        <p className="text-2xl font-black text-slate-900 tracking-tighter">{drawingPoints.length > 0 ? currentArea.toFixed(3) : '0.000'}</p>
-                      </div>
-                      <div className="space-y-1 border-l border-slate-50 pl-4">
-                        <p className="text-[8px] font-black text-red-500 uppercase tracking-widest">Uso m²</p>
-                        <p className="text-2xl font-black text-slate-900 tracking-tighter">{areaUsed.toFixed(3)}</p>
-                      </div>
-                   </div>
-                </div>
-
+                {/* Campos do Formulário */}
                 <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente / Obra</label>
-                    <input type="text" placeholder="Nome do Cliente" className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none text-sm" value={cutClientName} onChange={(e) => setCutClientName(e.target.value)} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cliente</label>
+                      <input type="text" placeholder="Nome" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold focus:border-blue-500 outline-none" value={cutClientName} onChange={(e) => setCutClientName(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Projeto</label>
+                      <input type="text" placeholder="Ex: Pia" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold focus:border-blue-500 outline-none" value={cutProject} onChange={(e) => setCutProject(e.target.value)} />
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Descrição do Item</label>
-                    <input type="text" placeholder="Ex: Soleira Banheiro" className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none text-sm" value={cutProject} onChange={(e) => setCutProject(e.target.value)} />
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-blue-600 uppercase ml-1 flex items-center gap-1"><Target size={12} /> Local do corte na chapa</label>
+                    <input type="text" placeholder="Ex: Canto Superior Direito" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-900 focus:border-blue-600 outline-none" value={cutLocationOnSlab} onChange={(e) => setCutLocationOnSlab(e.target.value)} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Local Instalação</label>
+                      <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none" value={cutInstallationLocation} onChange={(e) => setCutInstallationLocation(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Localização Sobra</label>
+                      <input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none" value={cutNewSlabLocation} onChange={(e) => setCutNewSlabLocation(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resumo de Área */}
+                <div className="bg-white p-4 rounded-3xl border border-slate-200 flex justify-around text-center shadow-sm">
+                  <div>
+                    <p className="text-[8px] font-black text-slate-400 uppercase">Sobra (m²)</p>
+                    <p className="text-xl font-black text-slate-900">{currentArea.toFixed(3)}</p>
+                  </div>
+                  <div className="w-px bg-slate-100"></div>
+                  <div>
+                    <p className="text-[8px] font-black text-red-500 uppercase">Consumo (m²)</p>
+                    <p className="text-xl font-black text-red-600">{areaUsed.toFixed(3)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8 space-y-3">
-                <button onClick={() => handleRegisterCut(false)} disabled={drawingPoints.length < 3 || !cutProject || !cutClientName} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-lg flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-2xl disabled:opacity-20 active:scale-95">
-                  <CheckCircle2 size={24} /> SALVAR COM SOBRA
+              {/* Botões de Ação Fixos no Rodapé do Modal (Mobile/Desktop) */}
+              <div className="p-6 bg-white border-t border-slate-100 space-y-3 shrink-0">
+                <button onClick={() => handleRegisterCut(false)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-2">
+                  <CheckCircle2 size={20} /> SALVAR CORTE E SOBRA
                 </button>
-                <button onClick={() => handleRegisterCut(true)} disabled={!cutProject || !cutClientName} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all shadow-lg active:scale-95">
-                  <Zap size={20} /> USO TOTAL (SEM SOBRAS)
+                <button onClick={() => handleRegisterCut(true)} className="w-full bg-slate-100 text-slate-500 py-3 rounded-xl font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 text-[11px]">
+                  <Zap size={16} /> USO TOTAL (SEM SOBRA)
                 </button>
               </div>
             </div>
