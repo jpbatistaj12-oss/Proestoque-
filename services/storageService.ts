@@ -13,7 +13,7 @@ const KEYS = {
 };
 
 /**
- * Normaliza e-mails para evitar erros de espaços ou letras maiúsculas.
+ * Normaliza e-mails: remove espaços e coloca tudo em minúsculo.
  */
 const normalizeString = (str: string | undefined) => str ? str.trim().toLowerCase() : '';
 
@@ -26,7 +26,7 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
   const cleanEmail = normalizeString(email);
   const cleanPassword = (password || '').trim();
   
-  // Login de Super Admin da plataforma
+  // 1. Login Super Admin
   if (cleanEmail === 'admin@marmoraria.control' && cleanPassword === 'marm@2025') {
     const superAdmin: User = {
       id: 'SUPER-001',
@@ -41,39 +41,42 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
 
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   
-  // Busca o usuário comparando os e-mails normalizados
+  // 2. Busca o usuário sem filtrar por cargo primeiro para dar erro específico
   const user = users.find(u => normalizeString(u.email) === cleanEmail);
   
   if (!user) {
-    // LOG DE DEPURAÇÃO PARA O USUÁRIO (Visível no F12)
-    console.group("Erro de Login: E-mail não encontrado");
-    console.warn("E-mail digitado:", cleanEmail);
-    console.log("E-mails cadastrados no sistema:");
-    console.table(users.map(u => ({ nome: u.name, email_no_banco: u.email, role: u.role })));
+    // DIAGNÓSTICO PARA O USUÁRIO (Console F12)
+    console.group("ERRO DE LOGIN: CONFIGURE O ACESSO ABAIXO");
+    console.log("Tentativa de e-mail:", cleanEmail);
+    console.log("Usuários cadastrados no sistema:");
+    console.table(users.map(u => ({ nome: u.name, e_mail: u.email, cargo: u.role, senha: u.password })));
     console.groupEnd();
-    throw new Error("E-MAIL NÃO ENCONTRADO. Verifique se o colaborador foi cadastrado corretamente no menu 'Equipe'.");
+    
+    throw new Error("E-MAIL NÃO ENCONTRADO. Certifique-se de que o e-mail foi cadastrado no menu 'Equipe' ou na 'Plataforma'.");
   }
 
-  // Validação de Perfil (Se o usuário selecionou Admin mas é Operador, avisamos)
+  // 3. Validação de aba selecionada (Admin vs Colaborador)
   if (preferredRole && user.role !== preferredRole && user.role !== UserRole.SUPER_ADMIN) {
-    const roleName = preferredRole === UserRole.ADMIN ? 'Administrador' : 'Colaborador/Operador';
-    throw new Error(`Este e-mail está cadastrado, mas não possui perfil de ${roleName}.`);
+    const roleDigitada = preferredRole === UserRole.ADMIN ? 'ADMINISTRADOR' : 'COLABORADOR';
+    const roleReal = user.role === UserRole.ADMIN ? 'ADMINISTRADOR' : 'COLABORADOR';
+    throw new Error(`ESTE E-MAIL É DE UM ${roleReal}. Selecione a aba "${roleReal}" acima para entrar.`);
   }
 
-  // Comparação de senha
+  // 4. Comparação de senha
   if (user.password !== cleanPassword) {
-    throw new Error("SENHA INCORRETA. Verifique se o Caps Lock está ligado.");
+    throw new Error("SENHA INCORRETA. Verifique maiúsculas e minúsculas.");
   }
 
+  // 5. Validação de Empresa
   const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
   const company = companies.find(c => c.id === user.companyId);
 
   if (!company && user.role !== UserRole.SUPER_ADMIN) {
-    throw new Error("ERRO CRÍTICO: Empresa não encontrada para este usuário.");
+    throw new Error("Empresa não vinculada.");
   }
 
   if (company && company.status === CompanyStatus.SUSPENDED) {
-    throw new Error("ACESSO SUSPENSO. Entre em contato com a administração da plataforma.");
+    throw new Error("Acesso suspenso pelo administrador.");
   }
 
   const { password: _, ...userWithoutPassword } = user;
@@ -91,13 +94,13 @@ export const addTeamMember = (name: string, email: string, role: UserRole, compa
   const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   
   if (users.some((u: StoredUser) => normalizeString(u.email) === cleanEmail)) {
-    throw new Error("Este e-mail já está sendo utilizado por outro colaborador.");
+    throw new Error("E-mail já cadastrado.");
   }
 
   const newUser: StoredUser = {
     id: `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
     name: name.trim(), 
-    email: cleanEmail, // Salva sempre em minúsculo e limpo
+    email: cleanEmail, 
     role, 
     companyId, 
     password: (password || 'marm123').trim()
@@ -114,15 +117,13 @@ export const updateTeamMemberCredentials = (userId: string, companyId: string, u
     if (updates.email) {
       const cleanEmail = normalizeString(updates.email);
       if (users.some((u, i) => i !== index && normalizeString(u.email) === cleanEmail)) {
-        throw new Error("Este novo e-mail já está sendo usado.");
+        throw new Error("E-mail já está em uso.");
       }
       updates.email = cleanEmail;
     }
     
     users[index] = { ...users[index], ...updates };
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-  } else {
-    throw new Error("Colaborador não encontrado.");
   }
 };
 

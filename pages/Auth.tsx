@@ -22,12 +22,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      if (!email.trim() || !password.trim()) {
+      // Normalização imediata no submit
+      const cleanEmail = email.trim().toLowerCase();
+      
+      if (!cleanEmail || !password.trim()) {
         setLoading(false);
         return setError('E-mail e senha são obrigatórios.');
       }
       
-      const user = login(email, password, activeRole);
+      const user = login(cleanEmail, password, activeRole);
       if (user) {
         onLogin(user);
       }
@@ -73,7 +76,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="p-5 bg-red-50 border border-red-100 text-red-600 rounded-3xl flex items-start gap-4 animate-shake">
             <AlertCircle className="shrink-0 mt-0.5" size={20} />
             <div className="space-y-1">
-               <p className="text-[10px] font-black uppercase tracking-widest">Erro de Acesso</p>
+               <p className="text-[10px] font-black uppercase tracking-widest">Atenção</p>
                <p className="text-[11px] font-bold leading-relaxed">{error}</p>
             </div>
           </div>
@@ -85,12 +88,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
               <input 
-                type="email" 
+                type="text" 
                 placeholder="exemplo@gmail.com"
                 className="w-full pl-12 pr-4 py-4.5 bg-slate-50 border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
                 disabled={loading}
+                autoCapitalize="off"
               />
             </div>
           </div>
@@ -130,7 +134,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
              <Info size={12} className="text-blue-500" />
              <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest">
-               Esqueceu o e-mail? Consulte o ADM da marmoraria.
+               Problemas? Clique em F12 {'>'} Console para Diagnóstico.
              </p>
            </div>
         </div>
