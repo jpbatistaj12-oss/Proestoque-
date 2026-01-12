@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { login } from '../services/storageService';
-import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle, Shield, HardHat, Info } from 'lucide-react';
+import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle, Shield, HardHat, Info, Sparkles } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -26,7 +26,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError(null);
     setLoading(true);
 
-    // Normalização instantânea no submit
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
 
@@ -35,121 +34,182 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       return setError('Preencha seu e-mail e sua senha.');
     }
 
-    try {
-      const user = login(cleanEmail, cleanPass, activeRole);
-      if (user) {
-        onLogin(user);
+    // Simulação de delay para feedback visual do loader
+    setTimeout(() => {
+      try {
+        const user = login(cleanEmail, cleanPass, activeRole);
+        if (user) {
+          onLogin(user);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Falha na autenticação.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Falha na autenticação.');
-    } finally {
-      setLoading(false);
-    }
+    }, 800);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-[3rem] shadow-2xl overflow-hidden p-8 sm:p-12 space-y-8 animate-popIn border border-white/10">
-        <div className="text-center space-y-2">
-          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
-            <Building2 className="text-white" size={32} />
-          </div>
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">
-            Acesso Restrito
-          </h2>
-          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">
-            Gestão de Marmoraria v2.1
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Elementos de Fundo Dinâmicos */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+      
+      {/* Grid de padrão sutil */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
 
-        {/* Seletor de Perfil (Administrador vs Operador) */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
-           <button 
-             type="button"
-             onClick={() => handleRoleChange(UserRole.ADMIN)}
-             className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.ADMIN ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-           >
-             <Shield size={14} /> Administrador
-           </button>
-           <button 
-             type="button"
-             onClick={() => handleRoleChange(UserRole.OPERATOR)}
-             className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${activeRole === UserRole.OPERATOR ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-           >
-             <HardHat size={14} /> Colaborador
-           </button>
-        </div>
-
-        {error && (
-          <div className="p-5 bg-red-50 border border-red-100 text-red-600 rounded-3xl flex items-start gap-4 animate-shake">
-            <AlertCircle className="shrink-0 mt-0.5" size={20} />
-            <div className="space-y-1">
-               <p className="text-[10px] font-black uppercase tracking-widest">Erro de Acesso</p>
-               <p className="text-[11px] font-bold leading-relaxed">{error}</p>
+      <div className="w-full max-w-md relative animate-slideUp">
+        <div className="bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden border border-white/20 relative z-10">
+          
+          {/* Header com Gradiente */}
+          <div className="bg-gradient-to-b from-slate-50 to-white pt-12 pb-8 px-8 text-center border-b border-slate-100">
+            <div className="relative inline-block mb-6">
+              <div className="absolute inset-0 bg-blue-600 blur-2xl opacity-20 animate-pulse"></div>
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 w-20 h-20 rounded-3xl flex items-center justify-center text-white shadow-2xl relative rotate-3 hover:rotate-0 transition-transform duration-500">
+                <Building2 size={38} />
+              </div>
+              <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-xl shadow-lg border-2 border-white">
+                <Sparkles size={14} />
+              </div>
             </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Seu E-mail</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-              <input 
-                type="text" 
-                placeholder="exemplo@gmail.com"
-                className="w-full pl-12 pr-4 py-4.5 bg-slate-50 border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
+            
+            <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
+              Marmoraria<br/>Control
+            </h2>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2">
+              <span className="w-8 h-[1px] bg-slate-200"></span>
+              Acesso do Sistema
+              <span className="w-8 h-[1px] bg-slate-200"></span>
+            </p>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Sua Senha</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="Digite sua senha"
-                className="w-full pl-12 pr-12 py-4.5 bg-slate-50 border border-slate-200 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
+          <div className="p-8 sm:p-10 space-y-8">
+            {/* Seletor de Perfil Estilo Toggle */}
+            <div className="flex bg-slate-100 p-1.5 rounded-[1.5rem] gap-1 relative border border-slate-200/50">
               <button 
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600"
+                onClick={() => handleRoleChange(UserRole.ADMIN)}
+                className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 relative z-10 ${activeRole === UserRole.ADMIN ? 'text-slate-900' : 'text-slate-400 hover:text-slate-500'}`}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                <Shield size={16} /> Administrador
               </button>
+              <button 
+                type="button"
+                onClick={() => handleRoleChange(UserRole.OPERATOR)}
+                className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 relative z-10 ${activeRole === UserRole.OPERATOR ? 'text-slate-900' : 'text-slate-400 hover:text-slate-500'}`}
+              >
+                <HardHat size={16} /> Colaborador
+              </button>
+              {/* Slider animado do seletor */}
+              <div 
+                className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-2xl shadow-md transition-all duration-500 ease-out ${activeRole === UserRole.ADMIN ? 'left-1.5' : 'left-[50%]'}`}
+              ></div>
+            </div>
+
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-start gap-3 animate-shake">
+                <AlertCircle className="shrink-0 mt-0.5" size={18} />
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-black uppercase tracking-widest">Atenção</p>
+                  <p className="text-[11px] font-bold leading-tight">{error}</p>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Identificação (E-mail)</label>
+                <div className="group relative">
+                  <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
+                  <input 
+                    type="text" 
+                    placeholder="nome@marmoraria.com"
+                    className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm placeholder:text-slate-300 shadow-inner"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Senha Segura</label>
+                <div className="group relative">
+                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="••••••••"
+                    className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 font-bold transition-all outline-none text-slate-900 text-sm placeholder:text-slate-300 shadow-inner"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={loading}
+                className={`w-full relative group overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-5 rounded-[2rem] font-black shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm ${loading ? 'opacity-80 cursor-not-allowed' : 'hover:shadow-[0_15px_40px_rgba(59,130,246,0.6)]'}`}
+              >
+                {/* Efeito de brilho no hover */}
+                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                
+                {loading ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Autenticando...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-3">
+                    <LogIn size={20} />
+                    <span>ENTRAR NO PORTAL</span>
+                  </div>
+                )}
+              </button>
+            </form>
+
+            <div className="text-center pt-2">
+               <div className="inline-flex items-center gap-3 px-5 py-3 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:border-slate-200 transition-all cursor-help group">
+                 <Info size={16} className="text-blue-500 group-hover:animate-bounce" />
+                 <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none">
+                   Problemas com acesso? <span className="text-blue-600">Fale com o Suporte</span>
+                 </p>
+               </div>
             </div>
           </div>
-
-          <button 
-            type="submit"
-            disabled={loading}
-            className={`w-full bg-slate-900 text-white py-5.5 rounded-[2rem] font-black flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 mt-6 uppercase tracking-widest text-sm ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              <><LogIn size={20} /> ENTRAR NO SISTEMA</>
-            )}
-          </button>
-        </form>
-
-        <div className="text-center pt-2">
-           <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-             <Info size={12} className="text-blue-500" />
-             <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest">
-               Esqueceu o e-mail? Consulte o Adm da Marmoraria.
-             </p>
-           </div>
         </div>
+        
+        {/* Footer sutil fora do card */}
+        <p className="text-center text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-8 opacity-50">
+          Secure Infrastructure v2.1.0 • Marmoraria Control
+        </p>
       </div>
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(30px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        .animate-slideUp {
+          animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .animate-shake {
+          animation: shake 0.2s ease-in-out 0s 2;
+        }
+      `}</style>
     </div>
   );
 };
