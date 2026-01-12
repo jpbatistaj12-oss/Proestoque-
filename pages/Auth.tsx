@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { login } from '../services/storageService';
-import { LogIn, Building2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -13,17 +13,29 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setLoading(true);
+
     try {
-      if (!email || !password) return setError('Por favor, preencha e-mail e senha.');
+      if (!email || !password) {
+        setLoading(false);
+        return setError('Por favor, informe seu e-mail e sua senha para entrar.');
+      }
+      
       const user = login(email, password);
-      if (user) onLogin(user);
-      else setError('Credenciais inválidas. Se você é um novo cliente, aguarde o cadastro pelo administrador.');
+      if (user) {
+        onLogin(user);
+      } else {
+        setError('Falha na autenticação. Verifique os dados informados.');
+      }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Ocorreu um erro inesperado ao tentar entrar.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -43,8 +55,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-[10px] font-black uppercase tracking-widest animate-pulse text-center">
-            {error}
+          <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex gap-3 animate-shake">
+            <AlertCircle className="shrink-0" size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest leading-relaxed">
+              {error}
+            </span>
           </div>
         )}
 
@@ -54,9 +69,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             <input 
               type="email" 
               placeholder="E-mail de Acesso"
-              className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all outline-none"
+              className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all outline-none text-slate-900"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={loading}
+              autoComplete="email"
             />
           </div>
 
@@ -65,9 +82,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             <input 
               type={showPassword ? "text" : "password"} 
               placeholder="Sua Senha"
-              className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all outline-none"
+              className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all outline-none text-slate-900"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              autoComplete="current-password"
             />
             <button 
               type="button"
@@ -80,10 +99,17 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
           <button 
             type="submit"
-            className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-xl active:scale-95 mt-4 group uppercase tracking-widest"
+            disabled={loading}
+            className={`w-full bg-slate-900 text-white py-5 rounded-3xl font-black flex items-center justify-center gap-3 transition-all shadow-xl active:scale-95 mt-4 group uppercase tracking-widest ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'}`}
           >
-            <LogIn size={20} />
-            Entrar no Sistema
+            {loading ? (
+               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+               <>
+                 <LogIn size={20} />
+                 Entrar no Sistema
+               </>
+            )}
           </button>
         </form>
 

@@ -12,9 +12,7 @@ const KEYS = {
   SESSION: 'marm_active_session'
 };
 
-// Limpa espaços e coloca em minúsculo
 const normalizeEmail = (email: string) => email ? email.trim().toLowerCase() : '';
-// Limpa apenas espaços da senha
 const normalizePassword = (pass: string) => pass ? pass.trim() : '';
 
 export const getCurrentUser = (): User | null => {
@@ -26,6 +24,9 @@ export const login = (email: string, password?: string): User | null => {
   const cleanEmail = normalizeEmail(email);
   const cleanPassword = normalizePassword(password || '');
   
+  console.group('Marmoraria Control: Tentativa de Login');
+  console.log('E-mail processado:', cleanEmail);
+
   // Login especial de Super Admin
   if (cleanEmail === 'admin@marmoraria.control' && cleanPassword === 'marm@2025') {
     const superAdmin: User = {
@@ -35,32 +36,49 @@ export const login = (email: string, password?: string): User | null => {
       role: UserRole.SUPER_ADMIN,
       companyId: 'PLATFORM_OWNER'
     };
+    console.log('Login Super Admin Identificado');
     localStorage.setItem(KEYS.SESSION, JSON.stringify(superAdmin));
+    console.groupEnd();
     return superAdmin;
   }
 
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   const user = users.find(u => normalizeEmail(u.email) === cleanEmail);
   
-  // Comparação estrita de senha para evitar login com campos vazios
-  if (user && user.password && user.password === cleanPassword) {
-    const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
-    const company = companies.find(c => c.id === user.companyId);
-
-    if (company && company.status === CompanyStatus.SUSPENDED) {
-      throw new Error("Sua conta está suspensa. Entre em contato com o suporte financeiro.");
-    }
-
-    const { password: _, ...userWithoutPassword } = user;
-    localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
-    return userWithoutPassword;
+  if (!user) {
+    console.warn('Falha: Usuário não encontrado no banco de dados local.');
+    console.groupEnd();
+    throw new Error("E-mail não encontrado. Verifique se o cadastro foi realizado pelo administrador.");
   }
-  return null;
+
+  console.log('Usuário encontrado:', user.name);
+  console.log('Comparando senhas...');
+
+  if (user.password !== cleanPassword) {
+    console.warn('Falha: Senha incorreta.');
+    console.groupEnd();
+    throw new Error("Senha incorreta. Verifique se há espaços ou se o Caps Lock está ativado.");
+  }
+
+  const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
+  const company = companies.find(c => c.id === user.companyId);
+
+  if (company && company.status === CompanyStatus.SUSPENDED) {
+    console.warn('Falha: Empresa suspensa.');
+    console.groupEnd();
+    throw new Error("Sua conta está suspensa por questões administrativas/financeiras.");
+  }
+
+  console.log('Login bem-sucedido!');
+  const { password: _, ...userWithoutPassword } = user;
+  localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
+  console.groupEnd();
+  return userWithoutPassword;
 };
 
 export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
   const cleanEmail = normalizeEmail(email);
-  const cleanPassword = normalizePassword(password || 'marm123'); // Senha padrão se estiver vazio
+  const cleanPassword = normalizePassword(password || 'marm123');
   const companyId = `COMP-${Math.random().toString(36).substr(2, 9)}`;
   const adminId = `USR-${Math.random().toString(36).substr(2, 9)}`;
   

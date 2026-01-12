@@ -80,6 +80,7 @@ const App: React.FC = () => {
       return (
         <ItemDetail 
           itemId={selectedItemId} 
+          companyId={currentCompanyId}
           onBack={() => setActiveTab('inventory')} 
           onUpdate={() => refreshInventory(currentCompanyId)}
         />

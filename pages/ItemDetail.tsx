@@ -5,12 +5,14 @@ import { getItemById, saveItem, getCurrentUser } from '../services/storageServic
 import { STATUS_COLORS } from '../constants';
 import { 
   ArrowLeft, Scissors, Printer, Plus, Undo2, Trash2, Ruler, Eye, MapPin, 
-  CheckCircle2, X as XIcon, Zap, MousePointerClick, ChevronLeft, ChevronRight 
+  CheckCircle2, X as XIcon, Zap, MousePointerClick, ChevronLeft, ChevronRight,
+  Maximize
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface ItemDetailProps {
   itemId: string;
+  companyId: string;
   onBack: () => void;
   onUpdate: () => void;
 }
@@ -88,7 +90,7 @@ const ShapeRenderer: React.FC<{
   );
 };
 
-const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => {
+const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUpdate }) => {
   const [item, setItem] = useState<InventoryItem | undefined>();
   const [showCutModal, setShowCutModal] = useState(false);
   const [cutProject, setCutProject] = useState('');
@@ -103,11 +105,14 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
     const currentUser = getCurrentUser();
     setUser(currentUser);
     
-    if (currentUser) {
-      const foundItem = getItemById(itemId, currentUser.companyId);
-      if (foundItem) setItem(foundItem);
+    // Busca o item usando o companyId fornecido (que pode ser o impersonatedCompanyId)
+    const foundItem = getItemById(itemId, companyId);
+    if (foundItem) {
+      setItem(foundItem);
+    } else {
+      setItem(undefined);
     }
-  }, [itemId]);
+  }, [itemId, companyId]);
 
   if (!item) return <div className="p-10 text-center font-bold text-slate-500">Material não encontrado.</div>;
 
@@ -130,7 +135,6 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
     const cmX = Math.max(0, Math.min(item.currentWidth, Math.round((rawX - offsetX) / scale)));
     const cmY = Math.max(0, Math.min(item.currentHeight, Math.round((rawY - offsetY) / scale)));
 
-    // Se o ponto for idêntico ao anterior, ignora para evitar distância zero impossível de editar
     if (drawingPoints.length > 0) {
       const last = drawingPoints[drawingPoints.length - 1];
       if (last.x === cmX && last.y === cmY) return;
@@ -148,7 +152,6 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
     
     const newPoints = [...drawingPoints];
     
-    // Se a distância for 0, assumimos uma direção padrão (para a direita) para permitir "crescer" o segmento
     if (currentDist === 0) {
       newPoints[nextIndex] = {
         x: Math.round(p1.x + newLength),
@@ -162,7 +165,6 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
       };
     }
     
-    // Garante que o ponto não saia dos limites da chapa
     newPoints[nextIndex].x = Math.max(0, Math.min(item.currentWidth, newPoints[nextIndex].x));
     newPoints[nextIndex].y = Math.max(0, Math.min(item.currentHeight, newPoints[nextIndex].y));
     
@@ -244,7 +246,6 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
           <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
             <div className="flex flex-col md:flex-row">
               <div className="md:w-1/3 p-4 space-y-4 border-b md:border-b-0 md:border-r border-slate-50 bg-slate-50/50">
-                {/* Carrossel de Fotos */}
                 <div className="relative aspect-square w-full group">
                   <img 
                     src={item.photos[activePhotoIdx]} 
@@ -487,10 +488,45 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
             </div>
 
             <div className="lg:w-[38%] p-6 sm:p-10 flex flex-col bg-slate-50 overflow-y-auto">
-              <div className="space-y-8 flex-1">
-                <div>
-                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter">Dados do Corte</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Registro de Produção</p>
+              <div className="space-y-6 flex-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Dados do Corte</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Registro de Produção</p>
+                  </div>
+                  {drawingPoints.length >= 3 && (
+                    <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl animate-pulse">
+                      <CheckCircle2 size={24} />
+                    </div>
+                  )}
+                </div>
+
+                {/* PRÉVIA VISUAL EM TEMPO REAL */}
+                <div className="bg-white p-4 rounded-[2rem] border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                      <Maximize size={12} className="text-blue-500" /> Prévia da Sobra
+                    </p>
+                    {drawingPoints.length < 3 && (
+                      <span className="text-[8px] font-black text-amber-500 uppercase">Desenhe 3 pontos</span>
+                    )}
+                  </div>
+                  <ShapeRenderer 
+                    points={drawingPoints} 
+                    containerW={window.innerWidth < 640 ? 260 : 320} 
+                    containerH={window.innerWidth < 640 ? 180 : 200}
+                    originalW={item.currentWidth}
+                    originalH={item.currentHeight}
+                    highlightColor="#10b981"
+                    className="!bg-slate-50 !border-slate-100 !shadow-none !p-2"
+                  />
+                  {drawingPoints.length >= 3 && (
+                    <div className="text-center">
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                         {Math.max(...drawingPoints.map(p => p.x))} x {Math.max(...drawingPoints.map(p => p.y))} cm
+                       </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
@@ -518,7 +554,7 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, onBack, onUpdate }) => 
                 </div>
               </div>
 
-              <div className="mt-10 space-y-3">
+              <div className="mt-8 space-y-3">
                 <button onClick={() => handleRegisterCut(false)} disabled={drawingPoints.length < 3 || !cutProject || !cutClientName} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-lg flex items-center justify-center gap-3 hover:bg-blue-600 transition-all shadow-2xl disabled:opacity-20 active:scale-95">
                   <CheckCircle2 size={24} /> SALVAR COM SOBRA
                 </button>
