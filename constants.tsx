@@ -7,7 +7,8 @@ import {
   QrCode, 
   History, 
   Users,
-  Search
+  Search,
+  Settings
 } from 'lucide-react';
 
 export const APP_NAME = "Marmoraria Control";
@@ -15,11 +16,12 @@ export const APP_NAME = "Marmoraria Control";
 export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['ADMIN', 'OPERATOR'] },
   { id: 'inventory', label: 'Estoque', icon: <Package size={20} />, roles: ['ADMIN', 'OPERATOR'] },
-  { id: 'projects', label: 'Projetos', icon: <Search size={20} />, roles: ['ADMIN', 'OPERATOR'] }, // Nova aba de pesquisa
+  { id: 'projects', label: 'Projetos', icon: <Search size={20} />, roles: ['ADMIN', 'OPERATOR'] },
   { id: 'add', label: 'Cadastrar', icon: <PlusCircle size={20} />, roles: ['ADMIN'] },
   { id: 'scanner', label: 'Scanner', icon: <QrCode size={20} />, roles: ['ADMIN', 'OPERATOR'] },
   { id: 'team', label: 'Equipe', icon: <Users size={20} />, roles: ['ADMIN'] },
   { id: 'history', label: 'Histórico', icon: <History size={20} />, roles: ['ADMIN', 'OPERATOR'] },
+  { id: 'platform', label: 'Plataforma', icon: <Settings size={20} />, roles: ['SUPER_ADMIN'] },
 ];
 
 export const STATUS_COLORS: Record<string, string> = {

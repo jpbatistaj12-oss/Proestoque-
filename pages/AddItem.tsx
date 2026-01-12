@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MaterialCategory, InventoryItem, StockStatus, User } from '../types';
 import { saveItem, getCurrentUser } from '../services/storageService';
-import { Camera, Save, ArrowLeft, Image as ImageIcon, Trash2, UploadCloud, ChevronLeft, ChevronRight, Plus, X, RotateCcw } from 'lucide-react';
+import { Camera, Save, ArrowLeft, Image as ImageIcon, Trash2, UploadCloud, ChevronLeft, ChevronRight, Plus, X, RotateCcw, MonitorPlay, Zap, MapPin } from 'lucide-react';
 
 interface AddItemProps {
   onComplete: () => void;
@@ -20,6 +20,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
     thickness: '2cm',
     width: 0,
     height: 0,
+    location: '',
     supplier: '',
     purchaseValue: '',
     observations: '',
@@ -29,6 +30,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [showFlash, setShowFlash] = useState(false);
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -53,9 +55,16 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
   const startCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' }, 
+        video: { 
+          facingMode: { exact: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }, 
         audio: false 
+      }).catch(() => {
+        return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       });
+
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -63,7 +72,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
       setIsCameraOpen(true);
     } catch (err) {
       console.error("Erro ao acessar a câmera:", err);
-      alert("Não foi possível acessar a câmera. Verifique as permissões.");
+      alert("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
     }
   };
 
@@ -79,15 +88,19 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
+      
+      setShowFlash(true);
+      setTimeout(() => setShowFlash(false), 150);
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        const imageData = canvas.toDataURL('image/jpeg', 0.85);
         setPhotos(prev => [...prev, imageData]);
-        setActivePhotoIndex(photos.length); // Focar na foto nova
-        stopCamera();
+        setActivePhotoIndex(photos.length);
+        if ('vibrate' in navigator) navigator.vibrate(50);
       }
     }
   };
@@ -106,12 +119,12 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
     e.preventDefault();
     if (!user) return;
     if (!formData.commercialName || !formData.width || !formData.height) {
-      alert('Por favor, preencha os campos obrigatórios.');
+      alert('Por favor, preencha os campos obrigatórios (Nome e Medidas).');
       return;
     }
 
     if (photos.length === 0) {
-      alert('Por favor, adicione pelo menos uma foto da chapa.');
+      alert('Por favor, adicione pelo menos uma foto da chapa para registro visual.');
       return;
     }
 
@@ -126,6 +139,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
       originalHeight: formData.height,
       currentWidth: formData.width,
       currentHeight: formData.height,
+      location: formData.location,
       totalArea: area,
       availableArea: area,
       supplier: formData.supplier,
@@ -134,7 +148,10 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
       observations: formData.observations,
       photos: photos,
       status: StockStatus.INTEIRA,
-      history: []
+      history: [],
+      lastOperatorId: user.id,
+      lastOperatorName: user.name,
+      lastUpdatedAt: new Date().toISOString()
     };
 
     saveItem(newItem);
@@ -142,218 +159,163 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto pb-10 animate-fadeIn">
+    <div className="max-w-5xl mx-auto pb-24 animate-fadeIn px-2 sm:px-0">
       <div className="flex items-center gap-4 mb-8">
-        <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg">
-          <ImageIcon size={24} />
+        <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl">
+          <UploadCloud size={24} />
         </div>
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Cadastro de Material</h2>
-          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Entrada de estoque para {user?.companyId}</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Novo Material</h2>
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">Entrada de estoque e registro fotográfico</p>
         </div>
       </div>
 
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Seção de Carrossel de Fotos */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white p-3 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
-            {/* Preview Principal */}
-            <div 
-              className={`aspect-square rounded-[2rem] overflow-hidden relative group bg-slate-50 border-2 border-dashed ${
-                photos.length > 0 ? 'border-transparent' : 'border-slate-200'
-              }`}
-            >
+          <div className="bg-white p-4 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
+            <div className={`aspect-square rounded-[2rem] overflow-hidden relative group bg-slate-50 border-2 border-dashed ${photos.length > 0 ? 'border-transparent' : 'border-slate-200'}`}>
               {photos.length > 0 ? (
                 <>
-                  <img 
-                    src={photos[activePhotoIndex]} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                    alt="Preview principal" 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-6">
-                    <button 
-                      type="button"
-                      onClick={() => removePhoto(activePhotoIndex)}
-                      className="bg-red-500 text-white px-6 py-3 rounded-2xl shadow-xl hover:bg-red-600 transition-all font-black text-xs flex items-center gap-2"
-                    >
-                      <Trash2 size={18} /> REMOVER ESTA FOTO
+                  <img src={photos[activePhotoIndex]} className="w-full h-full object-cover" alt="Visualização" />
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    <button type="button" onClick={() => removePhoto(activePhotoIndex)} className="bg-white/90 backdrop-blur-md text-red-500 p-3 rounded-2xl shadow-xl hover:bg-red-500 hover:text-white transition-all border border-red-100">
+                      <Trash2 size={20} />
                     </button>
                   </div>
-                  
                   {photos.length > 1 && (
-                    <>
-                      <button 
-                        type="button"
-                        onClick={() => setActivePhotoIndex(prev => (prev > 0 ? prev - 1 : photos.length - 1))}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-xl text-slate-900 shadow-lg hover:scale-110 transition-transform"
-                      >
-                        <ChevronLeft size={20} />
+                    <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none">
+                      <button type="button" onClick={() => setActivePhotoIndex(prev => (prev > 0 ? prev - 1 : photos.length - 1))} className="pointer-events-auto bg-white/80 backdrop-blur-sm p-3 rounded-2xl text-slate-900 shadow-lg hover:scale-110 transition-transform border border-white/50">
+                        <ChevronLeft size={24} />
                       </button>
-                      <button 
-                        type="button"
-                        onClick={() => setActivePhotoIndex(prev => (prev < photos.length - 1 ? prev + 1 : 0))}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-xl text-slate-900 shadow-lg hover:scale-110 transition-transform"
-                      >
-                        <ChevronRight size={20} />
+                      <button type="button" onClick={() => setActivePhotoIndex(prev => (prev < photos.length - 1 ? prev + 1 : 0))} className="pointer-events-auto bg-white/80 backdrop-blur-sm p-3 rounded-2xl text-slate-900 shadow-lg hover:scale-110 transition-transform border border-white/50">
+                        <ChevronRight size={24} />
                       </button>
-                    </>
+                    </div>
                   )}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] text-white font-black uppercase tracking-widest border border-white/20">
+                    {activePhotoIndex + 1} / {photos.length} FOTOS
+                  </div>
                 </>
               ) : (
-                <div 
-                  className="w-full h-full flex flex-col items-center justify-center p-8 text-center"
-                >
-                  <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mb-4 shadow-sm">
-                    <UploadCloud size={40} className="text-blue-400" />
+                <div className="w-full h-full flex flex-col items-center justify-center p-10 text-center">
+                  <div className="w-24 h-24 bg-blue-50 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-inner">
+                    <Camera size={48} className="text-blue-400" />
                   </div>
-                  <h4 className="text-slate-800 font-black text-lg">Nenhuma foto</h4>
-                  <p className="text-slate-400 text-sm font-medium mt-2">Use os botões abaixo para adicionar fotos do material</p>
+                  <h4 className="text-slate-900 font-black text-xl tracking-tight">Registro Visual Obrigatório</h4>
+                  <p className="text-slate-400 text-xs font-bold mt-2 leading-relaxed">Adicione fotos reais da chapa para controle de veios e tonalidade.</p>
                 </div>
               )}
             </div>
-
-            {/* Ações de Foto */}
-            <div className="grid grid-cols-2 gap-3 px-1">
-              <button 
-                type="button"
-                onClick={startCamera}
-                className="flex items-center justify-center gap-2 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase hover:bg-blue-600 transition-all shadow-md active:scale-95"
-              >
-                <Camera size={18} /> TIRAR FOTO
+            <div className="grid grid-cols-2 gap-4">
+              <button type="button" onClick={startCamera} className="flex flex-col items-center justify-center gap-2 bg-slate-900 text-white p-6 rounded-[2rem] hover:bg-blue-600 transition-all shadow-xl group active:scale-95">
+                <div className="bg-white/10 p-3 rounded-2xl group-hover:scale-110 transition-transform"><Camera size={28} /></div>
+                <span className="font-black text-[10px] uppercase tracking-widest">Usar Câmera</span>
               </button>
-              <button 
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-xs uppercase hover:bg-slate-200 transition-all border border-slate-200 shadow-sm active:scale-95"
-              >
-                <ImageIcon size={18} /> GALERIA
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center justify-center gap-2 bg-slate-50 text-slate-600 p-6 rounded-[2rem] border border-slate-200 hover:bg-white hover:border-blue-400 hover:text-blue-500 transition-all shadow-sm group active:scale-95">
+                <div className="bg-slate-200 p-3 rounded-2xl group-hover:scale-110 transition-transform"><ImageIcon size={28} /></div>
+                <span className="font-black text-[10px] uppercase tracking-widest">Galeria</span>
               </button>
             </div>
-
-            {/* Miniaturas */}
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide px-1 mt-2">
-              {photos.map((photo, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => setActivePhotoIndex(idx)}
-                  className={`shrink-0 w-20 h-20 rounded-2xl overflow-hidden cursor-pointer border-2 transition-all relative group ${
-                    activePhotoIndex === idx ? 'border-blue-500 scale-95 shadow-lg' : 'border-transparent hover:border-slate-200'
-                  }`}
-                >
-                  <img src={photo} className="w-full h-full object-cover" alt={`Thumb ${idx}`} />
-                  <button 
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); removePhoto(idx); }}
-                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-              {photos.length > 0 && (
-                <button 
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="shrink-0 w-20 h-20 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
-                >
-                  <Plus size={24} />
+            {photos.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide px-1 mt-2">
+                {photos.map((photo, idx) => (
+                  <div key={idx} onClick={() => setActivePhotoIndex(idx)} className={`shrink-0 w-20 h-20 rounded-2xl overflow-hidden cursor-pointer border-4 transition-all relative ${activePhotoIndex === idx ? 'border-blue-500 scale-105 shadow-xl' : 'border-white shadow-sm grayscale-[0.3]'}`}>
+                    <img src={photo} className="w-full h-full object-cover" alt="" />
+                  </div>
+                ))}
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="shrink-0 w-20 h-20 rounded-2xl border-4 border-dashed border-slate-200 flex items-center justify-center text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all bg-slate-50">
+                  <Plus size={32} />
                 </button>
-              )}
-            </div>
-            
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              className="hidden" 
-              accept="image/*" 
-              multiple 
-            />
+              </div>
+            )}
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
           </div>
         </div>
 
-        {/* Formulário de Dados */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria do Material</label>
+          <div className="bg-white p-6 sm:p-10 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Classificação</label>
                 <select 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-800 transition-all"
+                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 font-bold text-slate-900 transition-all outline-none"
                   value={formData.category}
                   onChange={(e) => setFormData({...formData, category: e.target.value as MaterialCategory})}
                 >
                   {Object.values(MaterialCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Comercial</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Nome do Material</label>
                 <input 
                   type="text" 
-                  placeholder="Ex: Quartzo Calacatta"
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 font-bold transition-all"
+                  placeholder="Ex: Granito Branco Siena"
+                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 font-bold transition-all outline-none"
                   value={formData.commercialName}
                   onChange={(e) => setFormData({...formData, commercialName: e.target.value})}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Espessura</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Espessura</label>
                 <input 
                   type="text" 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold"
+                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
                   value={formData.thickness}
                   onChange={(e) => setFormData({...formData, thickness: e.target.value})}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Largura (cm)</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Largura (cm)</label>
                 <input 
                   type="number" 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                  className="w-full p-5 bg-white border-2 border-slate-100 rounded-3xl font-black text-blue-600 text-xl focus:border-blue-600 transition-all outline-none shadow-inner"
                   value={formData.width || ''}
                   onChange={(e) => setFormData({...formData, width: Number(e.target.value)})}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Altura (cm)</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Altura (cm)</label>
                 <input 
                   type="number" 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                  className="w-full p-5 bg-white border-2 border-slate-100 rounded-3xl font-black text-blue-600 text-xl focus:border-blue-600 transition-all outline-none shadow-inner"
                   value={formData.height || ''}
                   onChange={(e) => setFormData({...formData, height: Number(e.target.value)})}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fornecedor</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Localização Física</label>
+                <div className="relative">
+                  <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input 
+                    type="text" 
+                    className="w-full pl-12 p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
+                    placeholder="Ex: Corredor A, Palito 3"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Fornecedor</label>
                 <input 
                   type="text" 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold"
+                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
                   value={formData.supplier}
                   onChange={(e) => setFormData({...formData, supplier: e.target.value})}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor de Compra (Opcional)</label>
-                <input 
-                  type="number" 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold"
-                  placeholder="0.00"
-                  value={formData.purchaseValue}
-                  onChange={(e) => setFormData({...formData, purchaseValue: e.target.value})}
-                />
-              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observações Técnicas</label>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Observações Técnicas</label>
               <textarea 
-                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-medium h-24 transition-all focus:ring-4 focus:ring-blue-500/10"
+                className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2rem] font-medium h-32 transition-all focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 outline-none resize-none"
                 placeholder="Ex: Material com veios horizontais, faces polidas..."
                 value={formData.observations}
                 onChange={(e) => setFormData({...formData, observations: e.target.value})}
@@ -362,61 +324,41 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete }) => {
           </div>
 
           <div className="flex gap-4">
-             <button 
-              type="submit" 
-              className="flex-1 bg-slate-900 text-white py-6 rounded-[2rem] font-black flex items-center justify-center gap-3 hover:bg-blue-600 shadow-2xl active:scale-95 transition-all text-lg group"
-            >
-              <Save size={24} className="group-hover:rotate-12 transition-transform" />
-              SALVAR NO ESTOQUE
+             <button type="submit" className="flex-1 bg-slate-900 text-white py-6 rounded-[2.5rem] font-black flex items-center justify-center gap-4 hover:bg-emerald-600 shadow-2xl active:scale-95 transition-all text-xl group relative overflow-hidden">
+              <Save size={28} />
+              CONFIRMAR ENTRADA
             </button>
           </div>
         </div>
       </form>
 
-      {/* Modal de Câmera */}
       {isCameraOpen && (
-        <div className="fixed inset-0 bg-black z-[200] flex flex-col items-center justify-center p-4">
-          <div className="relative w-full max-w-lg aspect-[3/4] bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-slate-800">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              className="w-full h-full object-cover"
-            />
-            
-            {/* Overlay da Câmera UI */}
-            <div className="absolute inset-0 border-[20px] border-black/20 pointer-events-none"></div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border border-white/30 rounded-3xl pointer-events-none"></div>
-
-            <button 
-              onClick={stopCamera}
-              className="absolute top-6 right-6 bg-black/50 text-white p-3 rounded-full hover:bg-red-500 transition-all backdrop-blur-md"
-            >
-              <X size={24} />
-            </button>
+        <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center animate-fadeIn overflow-hidden">
+          <div className="w-full p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent absolute top-0 z-10">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg"><Camera size={20} className="text-white" /></div>
+               <div>
+                 <p className="text-white font-black text-xs uppercase tracking-widest">Câmera de Produção</p>
+                 <p className="text-blue-400 text-[9px] font-black uppercase tracking-widest">Modo Alta Definição</p>
+               </div>
+             </div>
+             <button onClick={stopCamera} className="bg-white/10 backdrop-blur-xl text-white p-3 rounded-2xl hover:bg-red-500 transition-all border border-white/10"><X size={24} /></button>
           </div>
-
-          <div className="mt-8 flex items-center gap-8">
-            <button 
-              onClick={stopCamera}
-              className="w-16 h-16 bg-slate-800 text-white rounded-full flex items-center justify-center hover:bg-slate-700 transition-all"
-            >
-              <RotateCcw size={24} />
-            </button>
-            <button 
-              onClick={takePhoto}
-              className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-all border-8 border-slate-300"
-            >
-              <div className="w-16 h-16 bg-slate-900 rounded-full"></div>
-            </button>
-            <div className="w-16 h-16"></div> {/* Spacer for symmetry */}
+          <div className="relative w-full h-full flex items-center justify-center">
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover sm:rounded-[3rem] sm:w-[90%] sm:h-[80%] sm:border-8 sm:border-white/10" />
+            {showFlash && <div className="absolute inset-0 bg-white z-50 animate-pulse"></div>}
           </div>
-          
-          <p className="mt-6 text-white/50 text-[10px] font-black uppercase tracking-widest">Aponte para a chapa e clique no botão branco</p>
+          <div className="w-full p-10 flex items-center justify-center gap-10 bg-gradient-to-t from-black/80 to-transparent absolute bottom-0">
+            <button onClick={stopCamera} className="w-16 h-16 bg-white/10 backdrop-blur-2xl text-white rounded-3xl flex items-center justify-center hover:bg-red-500 transition-all border border-white/10 active:scale-90"><RotateCcw size={28} /></button>
+            <button onClick={takePhoto} className="w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] active:scale-90 transition-all border-8 border-slate-900 ring-4 ring-white"><div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center"></div></button>
+            <div className="relative group">
+              <div className="w-16 h-16 bg-white/10 backdrop-blur-2xl text-white rounded-3xl flex items-center justify-center border border-white/10 overflow-hidden">
+                {photos.length > 0 ? <img src={photos[photos.length - 1]} className="w-full h-full object-cover" alt="" /> : <MonitorPlay size={24} className="opacity-40" />}
+              </div>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Canvas oculto para captura */}
       <canvas ref={canvasRef} className="hidden" />
     </div>
   );

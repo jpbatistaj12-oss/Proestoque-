@@ -16,8 +16,9 @@ export enum MaterialCategory {
 }
 
 export enum UserRole {
-  ADMIN = 'ADMIN',
-  OPERATOR = 'OPERATOR'
+  SUPER_ADMIN = 'SUPER_ADMIN', // Dono da plataforma
+  ADMIN = 'ADMIN',             // Dono da Marmoraria
+  OPERATOR = 'OPERATOR'       // Funcionário
 }
 
 export interface User {
@@ -28,10 +29,18 @@ export interface User {
   companyId: string;
 }
 
+export enum CompanyStatus {
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  PENDING = 'PENDING'
+}
+
 export interface Company {
   id: string;
   name: string;
   adminId: string;
+  status: CompanyStatus;
+  createdAt: string;
 }
 
 export interface Point {
@@ -64,6 +73,7 @@ export interface InventoryItem {
   originalHeight: number;
   currentWidth: number;
   currentHeight: number;
+  location?: string;
   shapePoints?: Point[];
   totalArea: number;
   availableArea: number;
@@ -74,7 +84,6 @@ export interface InventoryItem {
   photos: string[];
   status: StockStatus;
   history: CutHistoryRecord[];
-  // Novos campos de auditoria
   lastOperatorId?: string;
   lastOperatorName?: string;
   lastUpdatedAt?: string;

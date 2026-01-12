@@ -1,7 +1,6 @@
 
-import { InventoryItem, User, Company, UserRole } from '../types';
+import { InventoryItem, User, Company, UserRole, CompanyStatus } from '../types';
 
-// Interface interna para usuários com senha (não exportada para o frontend)
 interface StoredUser extends User {
   password?: string;
 }
@@ -13,18 +12,35 @@ const KEYS = {
   SESSION: 'marm_active_session'
 };
 
-// --- AUTH & SESSION ---
 export const getCurrentUser = (): User | null => {
   const session = localStorage.getItem(KEYS.SESSION);
   return session ? JSON.parse(session) : null;
 };
 
 export const login = (email: string, password?: string): User | null => {
+  if (email === 'admin@marmoraria.control' && password === 'marm@2025') {
+    const superAdmin: User = {
+      id: 'SUPER-001',
+      name: 'Administrador Central',
+      email: email,
+      role: UserRole.SUPER_ADMIN,
+      companyId: 'PLATFORM_OWNER'
+    };
+    localStorage.setItem(KEYS.SESSION, JSON.stringify(superAdmin));
+    return superAdmin;
+  }
+
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   const user = users.find(u => u.email === email);
   
-  // No mundo real, usaríamos hash. Aqui verificamos a senha se fornecida.
   if (user && (!password || user.password === password)) {
+    const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
+    const company = companies.find(c => c.id === user.companyId);
+
+    if (company && company.status === CompanyStatus.SUSPENDED) {
+      throw new Error("Sua conta está suspensa. Entre em contato com o suporte financeiro.");
+    }
+
     const { password: _, ...userWithoutPassword } = user;
     localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
     return userWithoutPassword;
@@ -32,18 +48,26 @@ export const login = (email: string, password?: string): User | null => {
   return null;
 };
 
-export const registerCompany = (adminName: string, email: string, companyName: string, password?: string): User => {
+// Nova função: Registro manual pelo Super Admin
+export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
   const companyId = `COMP-${Math.random().toString(36).substr(2, 9)}`;
   const adminId = `USR-${Math.random().toString(36).substr(2, 9)}`;
   
-  const newCompany: Company = { id: companyId, name: companyName, adminId };
+  const newCompany: Company = { 
+    id: companyId, 
+    name: companyName, 
+    adminId,
+    status: CompanyStatus.ACTIVE,
+    createdAt: new Date().toISOString()
+  };
+
   const newUser: StoredUser = { 
     id: adminId, 
     name: adminName, 
     email, 
     role: UserRole.ADMIN, 
     companyId,
-    password // Armazenando a senha
+    password: password || 'marm123'
   };
 
   const companies = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
@@ -54,16 +78,23 @@ export const registerCompany = (adminName: string, email: string, companyName: s
 
   localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-
-  const { password: _, ...userWithoutPassword } = newUser;
-  localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
-
-  return userWithoutPassword;
 };
 
 export const logout = () => localStorage.removeItem(KEYS.SESSION);
 
-// --- TEAM MANAGEMENT ---
+export const getAllCompanies = (): Company[] => {
+  return JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
+};
+
+export const updateCompanyStatus = (companyId: string, status: CompanyStatus): void => {
+  const companies = getAllCompanies();
+  const index = companies.findIndex(c => c.id === companyId);
+  if (index >= 0) {
+    companies[index].status = status;
+    localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
+  }
+};
+
 export const getTeamMembers = (companyId: string): User[] => {
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   return users.filter(u => u.companyId === companyId).map(({ password, ...rest }) => rest);
@@ -79,7 +110,6 @@ export const addTeamMember = (name: string, email: string, role: UserRole, compa
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 };
 
-// --- INVENTORY (Scoped by Company) ---
 export const getInventory = (companyId: string): InventoryItem[] => {
   const data = localStorage.getItem(KEYS.INVENTORY);
   const allItems: InventoryItem[] = data ? JSON.parse(data) : [];
