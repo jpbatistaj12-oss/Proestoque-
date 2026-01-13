@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { InventoryItem, StockStatus, CutHistoryRecord, User } from '../types';
 import { getItemByUid, saveItem, getCurrentUser, getInventory } from '../services/storageService';
 import { STATUS_COLORS } from '../constants';
-import { ArrowLeft, Scissors, Ruler, Plus, X as XIcon, ShoppingBag, Maximize2, MapPin, History, PackagePlus, Save } from 'lucide-react';
+import { ArrowLeft, Scissors, Ruler, Plus, X as XIcon, ShoppingBag, Maximize2, MapPin, History, PackagePlus, Save, ZoomIn } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface ItemDetailProps {
@@ -16,6 +16,7 @@ interface ItemDetailProps {
 const ItemDetail: React.FC<ItemDetailProps> = ({ itemUid, companyId, onBack, onUpdate }) => {
   const [item, setItem] = useState<InventoryItem | undefined>();
   const [showUsageModal, setShowUsageModal] = useState(false);
+  const [showFullPhoto, setShowFullPhoto] = useState(false);
   const [usageType, setUsageType] = useState<'BAIXA' | 'SOBRA' | 'ENTRADA'>('BAIXA');
   const [project, setProject] = useState('');
   const [client, setClient] = useState('');
@@ -149,8 +150,14 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemUid, companyId, onBack, onU
         <div className="lg:col-span-8 space-y-8">
           <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col md:flex-row">
             <div className="md:w-[35%] p-8 bg-slate-50/50 flex flex-col items-center justify-center border-r border-slate-100">
-               <div className="relative w-full aspect-square rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white mb-6">
-                  <img src={item.photos[0]} className="w-full h-full object-cover" alt="" />
+               <div 
+                 onClick={() => setShowFullPhoto(true)}
+                 className="relative w-full aspect-square rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white mb-6 cursor-zoom-in group/photo"
+               >
+                  <img src={item.photos[0]} className="w-full h-full object-cover transition-transform duration-500 group-hover/photo:scale-110" alt="" />
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center">
+                    <ZoomIn className="text-white" size={32} />
+                  </div>
                </div>
                <div className="text-center">
                   <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Nº DE SÉRIE</p>
@@ -218,6 +225,27 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemUid, companyId, onBack, onU
           </div>
         </div>
       </div>
+
+      {/* MODAL DE FOTO CHEIA */}
+      {showFullPhoto && (
+        <div 
+          className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[500] flex items-center justify-center p-4 sm:p-10 animate-fadeIn"
+          onClick={() => setShowFullPhoto(false)}
+        >
+          <button 
+            className="absolute top-6 right-6 p-4 bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"
+            onClick={() => setShowFullPhoto(false)}
+          >
+            <XIcon size={32} />
+          </button>
+          <img 
+            src={item.photos[0]} 
+            className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl animate-popIn" 
+            alt={item.commercialName} 
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {showUsageModal && (
         <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[400] flex items-center justify-center p-4">

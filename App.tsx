@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NAV_ITEMS, APP_NAME } from './constants';
 import { InventoryItem, User, UserRole, SupplyItem } from './types';
 import { getInventory, getCurrentUser, logout, getAllCompanies, getSupplies } from './services/storageService';
-import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu } from 'lucide-react';
+import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu, FlaskConical, Package } from 'lucide-react';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -30,7 +30,6 @@ const App: React.FC = () => {
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
   const [inventoryFilter, setInventoryFilter] = useState<string | undefined>(undefined);
   
-  // States para Notificações e Menu Mobile
   const [showNotifications, setShowNotifications] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -88,16 +87,31 @@ const App: React.FC = () => {
   const currentCompanyId = impersonatedCompanyId || user?.companyId || '';
   const impersonatedCompanyName = impersonatedCompanyId ? getAllCompanies().find(c => c.id === impersonatedCompanyId)?.name : null;
 
-  const zeroStockItems = inventory.filter(item => Number(item.quantity) <= 0);
+  // LOGICA DE ALERTAS UNIFICADA
+  const slabAlerts = inventory.filter(item => Number(item.quantity) <= 0).map(item => ({
+    uid: item.uid,
+    id: item.id,
+    name: item.commercialName,
+    type: 'CHAPA',
+    status: 'ZERADO',
+    icon: <Package size={16} />
+  }));
+
+  const supplyAlerts = supplies.filter(item => item.quantity <= item.minQuantity).map(item => ({
+    uid: item.uid,
+    id: item.id,
+    name: item.name,
+    type: 'INSUMO',
+    status: item.quantity <= 0 ? 'ZERADO' : 'BAIXO',
+    icon: <FlaskConical size={16} />
+  }));
+
+  const allAlerts = [...slabAlerts, ...supplyAlerts];
 
   const menuItems = NAV_ITEMS.filter(item => {
     if (!user) return false;
-    if (user.role === UserRole.SUPER_ADMIN && !impersonatedCompanyId) {
-      return item.id === 'platform';
-    }
-    if (impersonatedCompanyId || user.role !== UserRole.SUPER_ADMIN) {
-      return item.id !== 'platform';
-    }
+    if (user.role === UserRole.SUPER_ADMIN && !impersonatedCompanyId) return item.id === 'platform';
+    if (impersonatedCompanyId || user.role !== UserRole.SUPER_ADMIN) return item.id !== 'platform';
     return false;
   });
 
@@ -180,9 +194,7 @@ const App: React.FC = () => {
               key={item.id}
               onClick={() => { setActiveTab(item.id); setSelectedItemUid(null); setInventoryFilter(undefined); }}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                activeTab === item.id 
-                ? 'bg-blue-600 text-white shadow-2xl shadow-blue-900/30' 
-                : 'text-slate-500 hover:text-white hover:bg-slate-800/50'
+                activeTab === item.id ? 'bg-blue-600 text-white shadow-2xl shadow-blue-900/30' : 'text-slate-500 hover:text-white hover:bg-slate-800/50'
               }`}
             >
               {item.icon} {item.label}
@@ -255,10 +267,10 @@ const App: React.FC = () => {
                   onClick={() => setShowNotifications(!showNotifications)}
                   className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl transition-all relative ${showNotifications ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                 >
-                   <Bell size={20} className={zeroStockItems.length > 0 && !showNotifications ? 'animate-bounce-slow md:block' : ''} />
-                   {zeroStockItems.length > 0 && (
+                   <Bell size={20} className={allAlerts.length > 0 && !showNotifications ? 'animate-bounce-slow md:block' : ''} />
+                   {allAlerts.length > 0 && (
                      <span className="absolute -top-1 -right-1 w-5 h-5 md:w-6 md:h-6 bg-red-500 text-white text-[9px] md:text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-                        {zeroStockItems.length}
+                        {allAlerts.length}
                      </span>
                    )}
                 </button>
@@ -266,23 +278,28 @@ const App: React.FC = () => {
                 {showNotifications && (
                   <div className="absolute right-0 mt-4 w-72 md:w-80 bg-white rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden animate-popIn z-[100]">
                     <div className="bg-slate-900 p-4 md:p-5 text-white flex justify-between items-center">
-                       <h4 className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Alertas de Compra</h4>
+                       <h4 className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Alertas de Reposição</h4>
                        <ShoppingCart size={14} className="text-blue-400" />
                     </div>
                     <div className="max-h-[300px] md:max-h-[350px] overflow-y-auto p-2 scrollbar-hide">
-                       {zeroStockItems.length > 0 ? (
-                         zeroStockItems.map(item => (
+                       {allAlerts.length > 0 ? (
+                         allAlerts.map(alert => (
                            <div 
-                             key={item.uid} 
-                             onClick={() => handleSelectItem(item.uid)}
+                             key={alert.uid} 
+                             onClick={() => {
+                               if (alert.type === 'CHAPA') handleSelectItem(alert.uid);
+                               else { setActiveTab('supplies'); setShowNotifications(false); }
+                             }}
                              className="p-3 md:p-4 hover:bg-slate-50 rounded-2xl cursor-pointer flex items-center gap-3 md:gap-4 transition-all group"
                            >
-                              <div className="w-10 h-10 md:w-12 md:h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors">
-                                 <AlertCircle size={18} />
+                              <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-colors ${alert.status === 'ZERADO' ? 'bg-red-50 text-red-500 group-hover:bg-red-500 group-hover:text-white' : 'bg-amber-50 text-amber-500 group-hover:bg-amber-500 group-hover:text-white'}`}>
+                                 {alert.icon}
                               </div>
                               <div className="min-w-0">
-                                 <p className="text-[11px] md:text-xs font-black text-slate-900 uppercase truncate">{item.commercialName}</p>
-                                 <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase mt-1 truncate">SÉRIE: {item.id} • ZERADO</p>
+                                 <p className="text-[11px] md:text-xs font-black text-slate-900 uppercase truncate">{alert.name}</p>
+                                 <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase mt-1 truncate">
+                                   ID: {alert.id} • {alert.type} • {alert.status}
+                                 </p>
                               </div>
                            </div>
                          ))
@@ -293,16 +310,6 @@ const App: React.FC = () => {
                          </div>
                        )}
                     </div>
-                    {zeroStockItems.length > 0 && (
-                      <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-100">
-                         <button 
-                           onClick={() => { setActiveTab('inventory'); setInventoryFilter('zerado'); setShowNotifications(false); }}
-                           className="w-full py-2.5 md:py-3 bg-white border border-slate-200 rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-900 hover:text-white transition-all"
-                         >
-                            Ver todos os itens zerados
-                         </button>
-                      </div>
-                    )}
                   </div>
                 )}
              </div>
