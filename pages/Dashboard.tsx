@@ -2,7 +2,7 @@
 import React from 'react';
 import { InventoryItem, StockStatus } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Maximize2, AlertCircle, Package, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Maximize2, AlertCircle, Package, AlertTriangle, ArrowRight, CheckCircle } from 'lucide-react';
 
 interface DashboardProps {
   inventory: InventoryItem[];
@@ -11,8 +11,13 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilterRequest }) => {
+  // Área total considerando a quantidade de cada chapa
   const totalArea = inventory.reduce((acc, item) => acc + (item.availableArea * item.quantity), 0);
+  
+  // Quantidade exata cadastrada (Soma de TODAS as unidades de todas as chapas)
   const totalQuantity = inventory.reduce((acc, item) => acc + item.quantity, 0);
+  
+  // Itens com estoque zerado
   const zeroStockItems = inventory.filter(item => item.quantity <= 0);
   const zeroStockCount = zeroStockItems.length;
 
@@ -50,8 +55,8 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
           <StatCard 
             title="Chapas em Estoque" 
             value={totalQuantity} 
-            icon={<Package size={20} className="text-green-500" />} 
-            subtitle="Clique para ver todos"
+            icon={<CheckCircle size={20} className="text-green-500" />} 
+            subtitle="Clique para ver disponíveis"
             color="hover:border-green-200 hover:bg-green-50/30"
           />
         </div>
@@ -76,7 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
             value={itemsLeftover} 
             icon={<AlertCircle size={20} className="text-purple-500" />} 
             color={itemsLeftover > 0 ? "border-purple-200 bg-purple-50 shadow-md" : "hover:border-purple-100"}
-            subtitle="Ver materiais cortados"
+            subtitle="Ver retalhos cortados"
           />
         </div>
       </div>
