@@ -239,6 +239,28 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 };
 
+export const deleteCompany = (id: string): void => {
+  // 1. Remover a empresa
+  const companies = getAllCompanies();
+  const filteredCompanies = companies.filter(c => c.id !== id);
+  localStorage.setItem(KEYS.COMPANIES, JSON.stringify(filteredCompanies));
+
+  // 2. Remover todos os usuários da empresa
+  const users: StoredUser[] = safeJSONParse(KEYS.USERS, []);
+  const filteredUsers = users.filter(u => u.companyId !== id);
+  localStorage.setItem(KEYS.USERS, JSON.stringify(filteredUsers));
+
+  // 3. Limpar estoque de chapas da empresa
+  const inventory: InventoryItem[] = safeJSONParse(KEYS.INVENTORY, []);
+  const filteredInventory = inventory.filter(i => i.companyId !== id);
+  localStorage.setItem(KEYS.INVENTORY, JSON.stringify(filteredInventory));
+
+  // 4. Limpar estoque de insumos da empresa
+  const supplies: SupplyItem[] = safeJSONParse(KEYS.SUPPLIES, []);
+  const filteredSupplies = supplies.filter(s => s.companyId !== id);
+  localStorage.setItem(KEYS.SUPPLIES, JSON.stringify(filteredSupplies));
+};
+
 export const getTeamMembers = (companyId: string): StoredUser[] => {
   const users: StoredUser[] = safeJSONParse(KEYS.USERS, []);
   return users.filter(u => u.companyId === companyId);

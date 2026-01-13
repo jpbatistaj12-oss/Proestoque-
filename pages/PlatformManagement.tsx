@@ -21,7 +21,8 @@ import {
   getGlobalSupplyMaterials,
   addGlobalSupplyMaterial,
   removeGlobalSupplyMaterial,
-  GlobalMaterial
+  GlobalMaterial,
+  deleteCompany
 } from '../services/storageService';
 import { 
   Users, Search, Lock, Unlock, UserPlus, X, Key, Globe, 
@@ -88,6 +89,14 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
     refreshData();
     setShowAddModal(false);
     setFormName(''); setFormEmail(''); setFormCompany('');
+  };
+
+  const handleDeleteCompany = (id: string, name: string) => {
+    if (window.confirm(`⚠️ AÇÃO IRREVERSÍVEL ⚠️\n\nDeseja realmente EXCLUIR permanentemente a marmoraria "${name}"?\n\nIsso apagará:\n- Todos os usuários e acessos\n- Todo o estoque de chapas\n- Todo o estoque de insumos\n- Histórico de movimentações`)) {
+        deleteCompany(id);
+        refreshData();
+        alert("Cliente removido com sucesso.");
+    }
   };
 
   const handleAddGlobalCategory = (e: React.FormEvent) => {
@@ -180,7 +189,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* CLIENTES TAB RESTORED */}
+      {/* CLIENTES TAB */}
       {activeTab === 'clientes' && (
         <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 animate-slideUp">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-12">
@@ -220,6 +229,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                 <div className="flex gap-3">
                   <button onClick={() => onImpersonate(company.id)} className="flex-1 bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-600 transition-all shadow-lg active:scale-95">Acessar Painel</button>
                   <button onClick={() => { const c = getCompanyAdminCredentials(company.id); if(c){setSelectedCreds(c); setSelectedCompanyName(company.name); setShowCredsModal(true);}}} className="p-5 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-2xl transition-all shadow-sm"><Key size={20} /></button>
+                  <button onClick={() => handleDeleteCompany(company.id, company.name)} className="p-5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm"><Trash2 size={20} /></button>
                 </div>
               </div>
             ))}
@@ -293,7 +303,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* FINANCEIRO TAB RESTORED */}
+      {/* FINANCEIRO TAB */}
       {activeTab === 'financeiro' && (
         <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 animate-slideUp space-y-10">
            <div className="flex items-center gap-4">
@@ -330,12 +340,20 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                                {c.status}
                             </span>
                          </td>
-                         <td className="py-6 text-right">
+                         <td className="py-6 text-right space-x-2">
                             <button 
                               onClick={() => updateCompanyStatus(c.id, c.status === 'ACTIVE' ? CompanyStatus.SUSPENDED : CompanyStatus.ACTIVE)}
-                              className={`p-2 rounded-xl transition-all ${c.status === 'ACTIVE' ? 'bg-red-50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-emerald-50 text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
+                              className={`p-2 rounded-xl transition-all ${c.status === 'ACTIVE' ? 'bg-amber-50 text-amber-500 hover:bg-amber-500 hover:text-white' : 'bg-emerald-50 text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
+                              title={c.status === 'ACTIVE' ? 'Suspender' : 'Ativar'}
                             >
                                {c.status === 'ACTIVE' ? <Lock size={18} /> : <Unlock size={18} />}
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteCompany(c.id, c.name)}
+                              className="p-2 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all shadow-sm"
+                              title="Excluir Permanentemente"
+                            >
+                               <Trash2 size={18} />
                             </button>
                          </td>
                       </tr>
@@ -346,7 +364,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* MODAL: ONBOARDING CLIENTE RESTORED */}
+      {/* MODAL: ONBOARDING CLIENTE */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
@@ -405,7 +423,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* MODAL: CREDENCIAIS RESTORED */}
+      {/* MODAL: CREDENCIAIS */}
       {showCredsModal && selectedCreds && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
