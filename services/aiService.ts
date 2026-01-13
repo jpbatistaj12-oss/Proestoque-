@@ -1,8 +1,11 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Fix: Strictly follow the guideline for initializing GoogleGenAI with process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Inicialização segura: A API Key é obtida do ambiente injetado
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY || '';
+  return new GoogleGenAI({ apiKey });
+};
 
 const SYSTEM_INSTRUCTION = `
 Você é o "Marmobot", o assistente inteligente oficial do sistema Marmoraria Control.
@@ -23,6 +26,7 @@ Instruções de Estilo:
 
 export const getBotResponse = async (userMessage: string, history: { role: string, parts: string }[] = []) => {
   try {
+    const ai = getAIClient();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
