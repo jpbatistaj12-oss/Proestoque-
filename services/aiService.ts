@@ -1,12 +1,6 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-// Inicialização segura: A API Key é obtida do ambiente injetado
-const getAIClient = () => {
-  const apiKey = process.env.API_KEY || '';
-  return new GoogleGenAI({ apiKey });
-};
-
+// Instruction for the system to guide the model's behavior.
 const SYSTEM_INSTRUCTION = `
 Você é o "Marmobot", o assistente inteligente oficial do sistema Marmoraria Control.
 Seu objetivo é ajudar proprietários e colaboradores de marmorarias a usar o software.
@@ -26,18 +20,20 @@ Instruções de Estilo:
 
 export const getBotResponse = async (userMessage: string, history: { role: string, parts: string }[] = []) => {
   try {
-    const ai = getAIClient();
+    // Correct initialization as per guidelines: Always use named parameter and process.env.API_KEY directly.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Perform content generation following the provided SDK rules.
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [
-        { role: 'user', parts: [{ text: userMessage }] }
-      ],
+      contents: userMessage,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
       },
     });
 
+    // Access the 'text' property directly as per guidelines (not a method).
     return response.text || "Desculpe, tive um problema ao processar sua resposta. Pode repetir?";
   } catch (error) {
     console.error("Erro no Marmobot:", error);

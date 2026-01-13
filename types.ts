@@ -56,7 +56,6 @@ export interface CutHistoryRecord {
   observations?: string;
   operatorName: string;
   areaUsed: number;
-  // Campos para rastrear o que saiu vs o que sobrou
   cutWidth?: number;
   cutHeight?: number;
   leftoverWidth?: number;
@@ -64,8 +63,8 @@ export interface CutHistoryRecord {
 }
 
 export interface InventoryItem {
-  uid: string; // ID Único de Banco de Dados
-  id: string;  // ID de Série Visual (ex: 0001) - Pode ser duplicado entre sobras
+  uid: string;
+  id: string;
   entryIndex: number; 
   companyId: string;
   category: string;
@@ -85,4 +84,32 @@ export interface InventoryItem {
   status: StockStatus;
   history: CutHistoryRecord[];
   lastUpdatedAt: string;
+}
+
+// --- NOVAS INTERFACES PARA INSUMOS ---
+
+export interface SupplyHistoryRecord {
+  id: string;
+  date: string;
+  type: 'ENTRADA' | 'SAIDA';
+  quantityChange: number;
+  operatorName: string;
+  observations?: string;
+  project?: string;
+}
+
+export interface SupplyItem {
+  uid: string;
+  id: string;
+  companyId: string;
+  category: string;
+  name: string;
+  unit: string; // Un, Kg, L, Pacote, etc.
+  quantity: number;
+  minQuantity: number;
+  location?: string;
+  supplier?: string;
+  lastUpdatedAt: string;
+  history: SupplyHistoryRecord[];
+  photos: string[];
 }

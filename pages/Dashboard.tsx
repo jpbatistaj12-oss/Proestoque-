@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { InventoryItem, StockStatus } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -40,7 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ 
     name, 
-    value: Number(value.toFixed(2)) 
+    // Fix: Explicitly cast value to number to fix 'Property toFixed does not exist on type unknown' error
+    value: Number((value as number).toFixed(2)) 
   }));
 
   const recentItems = [...inventory]

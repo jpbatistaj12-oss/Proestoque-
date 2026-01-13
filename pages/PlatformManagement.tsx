@@ -15,11 +15,17 @@ import {
   addGlobalMaterial,
   removeGlobalCategory,
   removeGlobalMaterial,
+  getGlobalSupplyCategories,
+  addGlobalSupplyCategory,
+  removeGlobalSupplyCategory,
+  getGlobalSupplyMaterials,
+  addGlobalSupplyMaterial,
+  removeGlobalSupplyMaterial,
   GlobalMaterial
 } from '../services/storageService';
 import { 
   Users, Search, Lock, Unlock, UserPlus, X, Key, Globe, 
-  Database, Wallet, TrendingUp, BarChart3, CreditCard, LayoutGrid, Check, Copy, AlertCircle, Plus, BookOpen, Tag, Package, Trash2
+  Database, Wallet, TrendingUp, CreditCard, LayoutGrid, Plus, Tag, Package, Trash2, FlaskConical, Check
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -32,17 +38,17 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'catalogo' | 'financeiro'>('dashboard');
+  const [catalogSubTab, setCatalogSubTab] = useState<'chapas' | 'insumos'>('chapas');
   
-  // States do catálogo global
   const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterial[]>([]);
   const [globalCategories, setGlobalCategories] = useState<string[]>([]);
+  const [globalSupplyMaterials, setGlobalSupplyMaterials] = useState<GlobalMaterial[]>([]);
+  const [globalSupplyCategories, setGlobalSupplyCategories] = useState<string[]>([]);
   
-  // States do formulário de Novo Cliente
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formCompany, setFormCompany] = useState('');
 
-  // States do formulário de Catálogo
   const [newCatName, setNewCatName] = useState('');
   const [newMatName, setNewMatName] = useState('');
   const [newMatCat, setNewMatCat] = useState('');
@@ -52,10 +58,16 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const [selectedCompanyName, setSelectedCompanyName] = useState('');
 
   useEffect(() => {
+    refreshData();
+  }, []);
+
+  const refreshData = () => {
     setCompanies(getAllCompanies());
     setGlobalCategories(getGlobalCategories());
     setGlobalMaterials(getGlobalMaterials());
-  }, []);
+    setGlobalSupplyCategories(getGlobalSupplyCategories());
+    setGlobalSupplyMaterials(getGlobalSupplyMaterials());
+  };
 
   const totalSlabs = companies.reduce((acc, c) => acc + getInventory(c.id).length, 0);
   const totalRevenue = companies.reduce((acc, c) => acc + (c.monthlyFee || 0), 0);
@@ -73,7 +85,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
     e.preventDefault();
     if (!formName || !formEmail || !formCompany) return;
     createCompanyAccount(formName, formEmail, formCompany);
-    setCompanies(getAllCompanies());
+    refreshData();
     setShowAddModal(false);
     setFormName(''); setFormEmail(''); setFormCompany('');
   };
@@ -81,36 +93,39 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const handleAddGlobalCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName) return;
-    addGlobalCategory(newCatName);
-    setGlobalCategories(getGlobalCategories());
+    if (catalogSubTab === 'chapas') addGlobalCategory(newCatName);
+    else addGlobalSupplyCategory(newCatName);
+    refreshData();
     setNewCatName('');
-  };
-
-  const handleRemoveCategory = (cat: string) => {
-    if (window.confirm(`Deseja remover a categoria "${cat}" do catálogo global?`)) {
-      removeGlobalCategory(cat);
-      setGlobalCategories(getGlobalCategories());
-    }
   };
 
   const handleAddGlobalMaterial = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMatName || !newMatCat) return;
-    addGlobalMaterial(newMatName, newMatCat);
-    setGlobalMaterials(getGlobalMaterials());
+    if (catalogSubTab === 'chapas') addGlobalMaterial(newMatName, newMatCat);
+    else addGlobalSupplyMaterial(newMatName, newMatCat);
+    refreshData();
     setNewMatName('');
   };
 
+  const handleRemoveCategory = (cat: string) => {
+    if (window.confirm(`Remover categoria global "${cat}"?`)) {
+      if (catalogSubTab === 'chapas') removeGlobalCategory(cat);
+      else removeGlobalSupplyCategory(cat);
+      refreshData();
+    }
+  };
+
   const handleRemoveMaterial = (name: string) => {
-    if (window.confirm(`Deseja remover o material "${name}" do catálogo global?`)) {
-      removeGlobalMaterial(name);
-      setGlobalMaterials(getGlobalMaterials());
+    if (window.confirm(`Remover item global "${name}"?`)) {
+      if (catalogSubTab === 'chapas') removeGlobalMaterial(name);
+      else removeGlobalSupplyMaterial(name);
+      refreshData();
     }
   };
 
   return (
     <div className="space-y-10 animate-fadeIn max-w-7xl mx-auto pb-20 px-4">
-      {/* HEADER SECTION */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="flex items-center gap-5">
            <div className="w-16 h-16 bg-slate-900 rounded-3xl flex items-center justify-center text-white shadow-2xl">
@@ -130,7 +145,6 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       </div>
 
-      {/* DASHBOARD TAB */}
       {activeTab === 'dashboard' && (
         <div className="space-y-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-slideUp">
@@ -144,9 +158,6 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
                   <TrendingUp className="text-blue-600" /> Projeção de Faturamento
                </h3>
-               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-black text-[10px] uppercase tracking-widest">
-                  <TrendingUp size={14} /> +12% Crescimento
-               </div>
             </div>
             <div className="h-[350px]">
                <ResponsiveContainer width="100%" height="100%">
@@ -160,10 +171,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" fontSize={10} fontWeight={900} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
                     <YAxis fontSize={10} fontWeight={900} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '16px' }}
-                      labelStyle={{ fontWeight: 900, marginBottom: '8px', color: '#0f172a' }}
-                    />
+                    <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '16px' }} />
                     <Area type="monotone" dataKey="receita" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorReceita)" />
                   </AreaChart>
                </ResponsiveContainer>
@@ -172,7 +180,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* CLIENTES TAB */}
+      {/* CLIENTES TAB RESTORED */}
       {activeTab === 'clientes' && (
         <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 animate-slideUp">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-12">
@@ -219,69 +227,73 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* CATALOGO TAB */}
       {activeTab === 'catalogo' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-slideUp">
-           {/* CATEGORIAS */}
-           <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
-              <div className="flex items-center gap-4">
-                 <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Tag size={24} /></div>
-                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Categorias de Materiais</h3>
-              </div>
-              
-              <form onSubmit={handleAddGlobalCategory} className="flex gap-2">
-                 <input type="text" placeholder="Nova Categoria..." className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newCatName} onChange={e => setNewCatName(e.target.value)} />
-                 <button type="submit" className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-blue-600 transition-all"><Plus /></button>
-              </form>
-
-              <div className="grid grid-cols-2 gap-3">
-                 {globalCategories.map((cat, i) => (
-                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-red-100 transition-all">
-                      <span className="text-xs font-black uppercase text-slate-700 tracking-widest">{cat}</span>
-                      <button onClick={() => handleRemoveCategory(cat)} className="p-2 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
-                         <Trash2 size={16} />
-                      </button>
-                   </div>
-                 ))}
+        <div className="space-y-8 animate-slideUp">
+           <div className="flex justify-center">
+              <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1">
+                 <button onClick={() => setCatalogSubTab('chapas')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${catalogSubTab === 'chapas' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400'}`}>Catálogo Chapas</button>
+                 <button onClick={() => setCatalogSubTab('insumos')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${catalogSubTab === 'insumos' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400'}`}>Catálogo Insumos</button>
               </div>
            </div>
 
-           {/* MATERIAIS */}
-           <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
-              <div className="flex items-center gap-4">
-                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Package size={24} /></div>
-                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Catálogo de Materiais</h3>
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+                 <div className="flex items-center gap-4">
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Tag size={24} /></div>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Categorias ({catalogSubTab})</h3>
+                 </div>
+                 
+                 <form onSubmit={handleAddGlobalCategory} className="flex gap-2">
+                    <input type="text" placeholder="Nova Categoria..." className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newCatName} onChange={e => setNewCatName(e.target.value)} />
+                    <button type="submit" className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-blue-600 transition-all"><Plus /></button>
+                 </form>
+
+                 <div className="grid grid-cols-2 gap-3">
+                    {(catalogSubTab === 'chapas' ? globalCategories : globalSupplyCategories).map((cat, i) => (
+                      <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-red-100 transition-all">
+                         <span className="text-xs font-black uppercase text-slate-700 tracking-widest">{cat}</span>
+                         <button onClick={() => handleRemoveCategory(cat)} className="p-2 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                 </div>
               </div>
 
-              <form onSubmit={handleAddGlobalMaterial} className="space-y-3">
-                 <div className="flex gap-2">
-                    <input type="text" placeholder="Nome do Material..." className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newMatName} onChange={e => setNewMatName(e.target.value)} />
-                    <select className="w-40 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none uppercase text-[10px]" value={newMatCat} onChange={e => setNewMatCat(e.target.value)} required>
-                       <option value="">Categoria...</option>
-                       {globalCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
-                    <button type="submit" className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-emerald-600 transition-all"><Plus /></button>
+              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+                 <div className="flex items-center gap-4">
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                       {catalogSubTab === 'chapas' ? <Package size={24} /> : <FlaskConical size={24} />}
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Materiais ({catalogSubTab})</h3>
                  </div>
-              </form>
 
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
-                 {globalMaterials.map((mat, i) => (
-                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-red-100 transition-all">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black uppercase text-slate-800 tracking-tight">{mat.name}</span>
-                        <span className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">{mat.category}</span>
+                 <form onSubmit={handleAddGlobalMaterial} className="space-y-3">
+                    <div className="flex gap-2">
+                       <input type="text" placeholder="Nome do Item..." className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newMatName} onChange={e => setNewMatName(e.target.value)} />
+                       <select className="w-40 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none uppercase text-[10px]" value={newMatCat} onChange={e => setNewMatCat(e.target.value)} required>
+                          <option value="">Categoria...</option>
+                          {(catalogSubTab === 'chapas' ? globalCategories : globalSupplyCategories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                       </select>
+                       <button type="submit" className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-emerald-600 transition-all"><Plus /></button>
+                    </div>
+                 </form>
+
+                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
+                    {(catalogSubTab === 'chapas' ? globalMaterials : globalSupplyMaterials).map((mat, i) => (
+                      <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-red-100 transition-all">
+                         <div className="flex flex-col">
+                           <span className="text-sm font-black uppercase text-slate-800 tracking-tight">{mat.name}</span>
+                           <span className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">{mat.category}</span>
+                         </div>
+                         <button onClick={() => handleRemoveMaterial(mat.name)} className="p-2 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
                       </div>
-                      <button onClick={() => handleRemoveMaterial(mat.name)} className="p-2 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
-                         <Trash2 size={16} />
-                      </button>
-                   </div>
-                 ))}
+                    ))}
+                 </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* FINANCEIRO TAB */}
+      {/* FINANCEIRO TAB RESTORED */}
       {activeTab === 'financeiro' && (
         <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 animate-slideUp space-y-10">
            <div className="flex items-center gap-4">
@@ -334,7 +346,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* MODAL: ONBOARDING CLIENTE */}
+      {/* MODAL: ONBOARDING CLIENTE RESTORED */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
@@ -393,7 +405,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* MODAL: CREDENCIAIS */}
+      {/* MODAL: CREDENCIAIS RESTORED */}
       {showCredsModal && selectedCreds && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">

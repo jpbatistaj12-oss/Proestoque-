@@ -1,5 +1,5 @@
 
-import { InventoryItem, User, Company, UserRole, CompanyStatus, MaterialCategory } from '../types';
+import { InventoryItem, User, Company, UserRole, CompanyStatus, MaterialCategory, SupplyItem } from '../types';
 
 export interface StoredUser extends User {
   password?: string;
@@ -13,11 +13,14 @@ export interface GlobalMaterial {
 
 const KEYS = {
   INVENTORY: 'marm_inventory_v2',
+  SUPPLIES: 'marm_supplies_v2', // Novo: Estoque de Insumos
   USERS: 'marm_users_v2',
   COMPANIES: 'marm_companies_v2',
   SESSION: 'marm_active_session',
   GLOBAL_MATERIALS: 'marm_global_materials_v2',
-  GLOBAL_CATEGORIES: 'marm_global_categories_v2'
+  GLOBAL_CATEGORIES: 'marm_global_categories_v2',
+  GLOBAL_SUPPLY_MATERIALS: 'marm_global_supply_materials_v2', // Novo: Catálogo Global Insumos
+  GLOBAL_SUPPLY_CATEGORIES: 'marm_global_supply_categories_v2' // Novo: Categorias Global Insumos
 };
 
 const safeJSONParse = (key: string, defaultValue: any) => {
@@ -35,7 +38,7 @@ const normalizeEmail = (email: string | undefined): string => {
   return email.trim().toLowerCase();
 };
 
-// --- GESTÃO GLOBAL DE CATÁLOGO ---
+// --- GESTÃO GLOBAL DE CATÁLOGO (CHAPAS) ---
 
 export const getGlobalCategories = (): string[] => {
   const defaults = Object.values(MaterialCategory);
@@ -84,6 +87,49 @@ export const removeGlobalMaterial = (name: string): void => {
   localStorage.setItem(KEYS.GLOBAL_MATERIALS, JSON.stringify(filtered));
 };
 
+// --- GESTÃO GLOBAL DE CATÁLOGO (INSUMOS) ---
+
+export const getGlobalSupplyCategories = (): string[] => {
+  const defaults = ['Adesivos', 'Ferramentas', 'Acabamento', 'EPI', 'Cubas', 'Instalação'];
+  return safeJSONParse(KEYS.GLOBAL_SUPPLY_CATEGORIES, defaults);
+};
+
+export const addGlobalSupplyCategory = (name: string): void => {
+  const cats = getGlobalSupplyCategories();
+  if (!cats.includes(name)) {
+    cats.push(name);
+    localStorage.setItem(KEYS.GLOBAL_SUPPLY_CATEGORIES, JSON.stringify(cats));
+  }
+};
+
+export const removeGlobalSupplyCategory = (name: string): void => {
+  const cats = getGlobalSupplyCategories();
+  localStorage.setItem(KEYS.GLOBAL_SUPPLY_CATEGORIES, JSON.stringify(cats.filter(c => c !== name)));
+};
+
+export const getGlobalSupplyMaterials = (): GlobalMaterial[] => {
+  const defaults = [
+    { name: 'Cola PU 40 Branca', category: 'Adesivos' },
+    { name: 'Disco de Corte Diamantado', category: 'Ferramentas' },
+    { name: 'Massa Plástica', category: 'Acabamento' },
+    { name: 'Silicone Transparente', category: 'Instalação' }
+  ];
+  return safeJSONParse(KEYS.GLOBAL_SUPPLY_MATERIALS, defaults);
+};
+
+export const addGlobalSupplyMaterial = (name: string, category: string): void => {
+  const mats = getGlobalSupplyMaterials();
+  if (!mats.find(m => m.name === name)) {
+    mats.push({ name, category, uid: `SUP-GLOB-${Date.now()}` });
+    localStorage.setItem(KEYS.GLOBAL_SUPPLY_MATERIALS, JSON.stringify(mats));
+  }
+};
+
+export const removeGlobalSupplyMaterial = (name: string): void => {
+  const mats = getGlobalSupplyMaterials();
+  localStorage.setItem(KEYS.GLOBAL_SUPPLY_MATERIALS, JSON.stringify(mats.filter(m => m.name !== name)));
+};
+
 // --- AUTH & SESSION ---
 
 export const getCurrentUser = (): User | null => {
@@ -123,14 +169,12 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
   return userWithoutPassword;
 };
 
-// --- INVENTORY ---
+// --- INVENTORY (CHAPAS) ---
 
 export const getInventory = (companyId: string): InventoryItem[] => {
   const allItems: InventoryItem[] = safeJSONParse(KEYS.INVENTORY, []);
   return allItems.filter(item => item && item.companyId === companyId);
 };
-
-export const logout = () => { localStorage.removeItem(KEYS.SESSION); };
 
 export const saveItem = (item: InventoryItem): void => {
   const inventory: InventoryItem[] = safeJSONParse(KEYS.INVENTORY, []);
@@ -138,6 +182,22 @@ export const saveItem = (item: InventoryItem): void => {
   if (index >= 0) inventory[index] = item; else inventory.push(item);
   localStorage.setItem(KEYS.INVENTORY, JSON.stringify(inventory));
 };
+
+// --- INVENTORY (INSUMOS) ---
+
+export const getSupplies = (companyId: string): SupplyItem[] => {
+  const allSupplies: SupplyItem[] = safeJSONParse(KEYS.SUPPLIES, []);
+  return allSupplies.filter(s => s && s.companyId === companyId);
+};
+
+export const saveSupplyItem = (item: SupplyItem): void => {
+  const allSupplies: SupplyItem[] = safeJSONParse(KEYS.SUPPLIES, []);
+  const index = allSupplies.findIndex(s => s.uid === item.uid);
+  if (index >= 0) allSupplies[index] = item; else allSupplies.push(item);
+  localStorage.setItem(KEYS.SUPPLIES, JSON.stringify(allSupplies));
+};
+
+export const logout = () => { localStorage.removeItem(KEYS.SESSION); };
 
 export const getItemByUid = (uid: string, companyId: string): InventoryItem | undefined => {
   return getInventory(companyId).find(i => i.uid === uid);

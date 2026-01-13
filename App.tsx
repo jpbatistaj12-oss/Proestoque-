@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NAV_ITEMS, APP_NAME } from './constants';
-import { InventoryItem, User, UserRole } from './types';
-import { getInventory, getCurrentUser, logout, getAllCompanies } from './services/storageService';
+import { InventoryItem, User, UserRole, SupplyItem } from './types';
+import { getInventory, getCurrentUser, logout, getAllCompanies, getSupplies } from './services/storageService';
 import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu } from 'lucide-react';
 
 // Pages
@@ -17,12 +17,15 @@ import Auth from './pages/Auth';
 import ProjectSearch from './pages/ProjectSearch';
 import PlatformManagement from './pages/PlatformManagement';
 import SupportBot from './components/SupportBot';
+import SuppliesInventory from './pages/SuppliesInventory';
+import AddSupply from './pages/AddSupply';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedItemUid, setSelectedItemUid] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [supplies, setSupplies] = useState<SupplyItem[]>([]);
   const [isAppReady, setIsAppReady] = useState(false);
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
   const [inventoryFilter, setInventoryFilter] = useState<string | undefined>(undefined);
@@ -45,7 +48,6 @@ const App: React.FC = () => {
     }
     setIsAppReady(true);
 
-    // Fechar notificações ao clicar fora
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
@@ -57,7 +59,9 @@ const App: React.FC = () => {
 
   const refreshInventory = (companyId: string) => {
     const data = getInventory(companyId);
+    const supplyData = getSupplies(companyId);
     setInventory(data || []);
+    setSupplies(supplyData || []);
   };
 
   const handleSelectItem = (uid: string) => {
@@ -84,7 +88,6 @@ const App: React.FC = () => {
   const currentCompanyId = impersonatedCompanyId || user?.companyId || '';
   const impersonatedCompanyName = impersonatedCompanyId ? getAllCompanies().find(c => c.id === impersonatedCompanyId)?.name : null;
 
-  // Itens com estoque zerado para o alerta do sino
   const zeroStockItems = inventory.filter(item => Number(item.quantity) <= 0);
 
   const menuItems = NAV_ITEMS.filter(item => {
@@ -122,6 +125,15 @@ const App: React.FC = () => {
           onFilterCleared={() => setInventoryFilter(undefined)}
         />
       );
+      case 'supplies': return (
+        <SuppliesInventory 
+          supplies={supplies} 
+          onNewItem={() => { setActiveTab('addSupply'); setIsMobileMenuOpen(false); }} 
+          onUpdate={() => refreshInventory(currentCompanyId)}
+          user={user!}
+        />
+      );
+      case 'addSupply': return <AddSupply onComplete={() => { refreshInventory(currentCompanyId); setActiveTab('supplies'); }} user={user!} companyId={currentCompanyId} />;
       case 'projects': return <ProjectSearch inventory={inventory} onSelectItem={handleSelectItem} />;
       case 'add': return <AddItem onComplete={() => { refreshInventory(currentCompanyId); setActiveTab('inventory'); }} user={user!} companyId={currentCompanyId} />;
       case 'scanner': return <QRScanner onScan={(id) => {
@@ -144,7 +156,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
-      {/* SIDEBAR DESKTOP */}
       <aside className="hidden md:flex w-72 bg-[#0f172a] flex-col border-r border-slate-800 shrink-0">
         <div className="p-8 flex items-center gap-4">
           <div className="bg-blue-600 p-2.5 rounded-2xl text-white shadow-xl shadow-blue-500/20"><LayoutGrid size={24} /></div>
@@ -186,7 +197,6 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* DRAWER MOBILE */}
       <div className={`fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsMobileMenuOpen(false)}>
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#0f172a] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={e => e.stopPropagation()}>
           <div className="p-8 flex items-center justify-between">
@@ -222,7 +232,6 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header className="h-20 md:h-24 flex items-center justify-between px-6 md:px-10 bg-white border-b border-slate-200 shrink-0 z-20">
           <div className="flex items-center gap-4 min-w-0">
-            {/* BOTÃO TRIGGER MOBILE */}
             <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/20 active:scale-90 transition-transform">
               <LayoutGrid size={22} />
             </button>
@@ -241,7 +250,6 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3 md:gap-6">
-             {/* SINO DE NOTIFICAÇÃO */}
              <div className="relative" ref={notificationRef}>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
@@ -255,7 +263,6 @@ const App: React.FC = () => {
                    )}
                 </button>
 
-                {/* PAINEL DE NOTIFICAÇÕES */}
                 {showNotifications && (
                   <div className="absolute right-0 mt-4 w-72 md:w-80 bg-white rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden animate-popIn z-[100]">
                     <div className="bg-slate-900 p-4 md:p-5 text-white flex justify-between items-center">

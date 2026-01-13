@@ -9,7 +9,8 @@ import {
   Users,
   Search,
   Settings,
-  ArrowLeftCircle
+  ArrowLeftCircle,
+  FlaskConical
 } from 'lucide-react';
 import { MaterialCategory } from './types';
 
@@ -30,7 +31,8 @@ export const PREDEFINED_MATERIALS = [
 export const NAV_ITEMS = [
   // Itens visíveis apenas quando dentro de um cliente
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
-  { id: 'inventory', label: 'Estoque', icon: <Package size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'inventory', label: 'Chapas', icon: <Package size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'supplies', label: 'Insumos', icon: <FlaskConical size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
   { id: 'projects', label: 'Projetos (Busca)', icon: <Search size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
   { id: 'add', label: 'Gerenciar Material', icon: <PlusCircle size={20} />, roles: ['ADMIN'], clientOnly: true },
   { id: 'scanner', label: 'Scanner', icon: <QrCode size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
