@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MaterialCategory, InventoryItem, StockStatus, User } from '../types';
-import { saveItem, getInventory } from '../services/storageService';
-import { PREDEFINED_MATERIALS } from '../constants';
-import { Camera, Save, Image as ImageIcon, Search, Database, ArrowRight, Package, Maximize2, QrCode, Edit3, X, Hash } from 'lucide-react';
+import { InventoryItem, StockStatus, User } from '../types';
+import { saveItem, getInventory, getGlobalMaterials, getGlobalCategories, GlobalMaterial } from '../services/storageService';
+import { Camera, Save, Image as ImageIcon, Search, Database, ArrowRight, Package, Maximize2, QrCode, Edit3, X, Hash, Filter } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface AddItemProps {
@@ -15,6 +14,8 @@ interface AddItemProps {
 const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterial[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [generatedSerial, setGeneratedSerial] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [nextIndex, setNextIndex] = useState(1);
@@ -39,17 +40,17 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
   useEffect(() => {
     const currentInventory = getInventory(companyId);
     setInventory(currentInventory);
+    setGlobalMaterials(getGlobalMaterials());
+    setCategories(getGlobalCategories());
     
-    // Encontra o maior entryIndex para determinar o próximo
     const lastIndex = currentInventory.reduce((max, item) => Math.max(max, item.entryIndex || 0), 0);
     const newIndex = lastIndex + 1;
     
     setNextIndex(newIndex);
-    // O ID agora é apenas o número, formatado com 4 dígitos (ex: 0001)
     setGeneratedSerial(newIndex.toString().padStart(4, '0'));
   }, [companyId]);
 
-  const handleSelectPredefined = (mat: {name: string, category: string}) => {
+  const handleSelectPredefined = (mat: GlobalMaterial) => {
     const existing = inventory.find(i => i.commercialName === mat.name);
     setIsCustomCategory(false);
     
@@ -116,7 +117,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
     } else {
       itemToSave = {
         uid: `ITEM-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        id: generatedSerial, // Agora é puramente numérico (ex: 0001)
+        id: generatedSerial, 
         entryIndex: nextIndex,
         companyId: companyId,
         category: formData.category,
@@ -150,6 +151,13 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
     onComplete();
   };
 
+  // Filtra o catálogo lateral baseado na categoria atual selecionada no formulário
+  const filteredCatalog = globalMaterials.filter(m => {
+    const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = m.category === formData.category;
+    return matchesSearch && matchesCategory;
+  });
+
   return (
     <div className="max-w-6xl mx-auto pb-24 animate-fadeIn">
       <div className="flex items-center justify-between mb-10">
@@ -174,7 +182,11 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         <div className="lg:col-span-4">
           <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
-             <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-2">Catálogo de Materiais</h4>
+             <div className="flex justify-between items-center ml-2">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Catálogo: {formData.category}</h4>
+                <Filter size={14} className="text-slate-300" />
+             </div>
+             
              <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={18} />
                 <input 
@@ -185,8 +197,9 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
              </div>
+
              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
-                {PREDEFINED_MATERIALS.filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((mat, i) => (
+                {filteredCatalog.length > 0 ? filteredCatalog.map((mat, i) => (
                   <button 
                     key={i} 
                     onClick={() => handleSelectPredefined(mat)}
@@ -198,7 +211,12 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                     </div>
                     <ArrowRight size={16} className={formData.commercialName === mat.name ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} />
                   </button>
-                ))}
+                )) : (
+                  <div className="py-10 text-center opacity-40 grayscale flex flex-col items-center gap-3">
+                    <Package size={32} />
+                    <p className="text-[9px] font-black uppercase tracking-widest">Nenhum {formData.category} encontrado</p>
+                  </div>
+                )}
              </div>
           </div>
         </div>
@@ -240,7 +258,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                     value={formData.category} 
                     onChange={e => setFormData({...formData, category: e.target.value})}
                   >
-                    {Object.values(MaterialCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 ) : (
                   <input 

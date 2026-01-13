@@ -1,15 +1,22 @@
 
-import { InventoryItem, User, Company, UserRole, CompanyStatus } from '../types';
+import { InventoryItem, User, Company, UserRole, CompanyStatus, MaterialCategory } from '../types';
 
 export interface StoredUser extends User {
   password?: string;
+}
+
+export interface GlobalMaterial {
+  name: string;
+  category: string;
 }
 
 const KEYS = {
   INVENTORY: 'marm_inventory_v2',
   USERS: 'marm_users_v2',
   COMPANIES: 'marm_companies_v2',
-  SESSION: 'marm_active_session'
+  SESSION: 'marm_active_session',
+  GLOBAL_MATERIALS: 'marm_global_materials_v2',
+  GLOBAL_CATEGORIES: 'marm_global_categories_v2'
 };
 
 const safeJSONParse = (key: string, defaultValue: any) => {
@@ -26,6 +33,43 @@ const normalizeEmail = (email: string | undefined): string => {
   if (!email) return '';
   return email.trim().toLowerCase();
 };
+
+// --- GESTÃO GLOBAL DE CATÁLOGO ---
+
+export const getGlobalCategories = (): string[] => {
+  const defaults = Object.values(MaterialCategory);
+  return safeJSONParse(KEYS.GLOBAL_CATEGORIES, defaults);
+};
+
+export const addGlobalCategory = (categoryName: string): void => {
+  const categories = getGlobalCategories();
+  if (!categories.includes(categoryName)) {
+    categories.push(categoryName);
+    localStorage.setItem(KEYS.GLOBAL_CATEGORIES, JSON.stringify(categories));
+  }
+};
+
+export const getGlobalMaterials = (): GlobalMaterial[] => {
+  const defaults: GlobalMaterial[] = [
+    { name: 'Preto São Gabriel', category: 'Granito' },
+    { name: 'Verde Ubatuba', category: 'Granito' },
+    { name: 'Branco Siena', category: 'Granito' },
+    { name: 'Branco Prime', category: 'Quartzo' },
+    { name: 'Cinza Absoluto', category: 'Quartzo' },
+    { name: 'Mármore Carrara', category: 'Mármore' }
+  ];
+  return safeJSONParse(KEYS.GLOBAL_MATERIALS, defaults);
+};
+
+export const addGlobalMaterial = (name: string, category: string): void => {
+  const materials = getGlobalMaterials();
+  if (!materials.find(m => m.name.toLowerCase() === name.toLowerCase())) {
+    materials.push({ name, category });
+    localStorage.setItem(KEYS.GLOBAL_MATERIALS, JSON.stringify(materials));
+  }
+};
+
+// --- AUTH & SESSION ---
 
 export const getCurrentUser = (): User | null => {
   return safeJSONParse(KEYS.SESSION, null);
@@ -64,6 +108,8 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
   return userWithoutPassword;
 };
 
+// --- INVENTORY ---
+
 export const getInventory = (companyId: string): InventoryItem[] => {
   const allItems: InventoryItem[] = safeJSONParse(KEYS.INVENTORY, []);
   return allItems.filter(item => item && item.companyId === companyId);
@@ -83,9 +129,10 @@ export const getItemByUid = (uid: string, companyId: string): InventoryItem | un
 };
 
 export const getItemById = (id: string, companyId: string): InventoryItem | undefined => {
-  // Retorna o primeiro encontrado por ID de série (útil para scanner rápido)
   return getInventory(companyId).find(i => i.id === id);
 };
+
+// --- PLATFORM MGMT ---
 
 export const getAllCompanies = (): Company[] => safeJSONParse(KEYS.COMPANIES, []);
 

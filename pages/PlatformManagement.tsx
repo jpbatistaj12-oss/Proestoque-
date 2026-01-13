@@ -8,11 +8,16 @@ import {
   createCompanyAccount, 
   updateCompanyFee,
   getCompanyAdminCredentials, 
-  StoredUser 
+  StoredUser,
+  getGlobalCategories,
+  getGlobalMaterials,
+  addGlobalCategory,
+  addGlobalMaterial,
+  GlobalMaterial
 } from '../services/storageService';
 import { 
   Users, Search, Lock, Unlock, UserPlus, X, Key, Globe, 
-  Database, Wallet, TrendingUp, BarChart3, CreditCard, LayoutGrid, Check, Copy, AlertCircle
+  Database, Wallet, TrendingUp, BarChart3, CreditCard, LayoutGrid, Check, Copy, AlertCircle, Plus, BookOpen, Tag, Package
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -24,12 +29,21 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const [companies, setCompanies] = useState<Company[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'financeiro'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'clientes' | 'catalogo' | 'financeiro'>('dashboard');
+  
+  // States do catálogo global
+  const [globalMaterials, setGlobalMaterials] = useState<GlobalMaterial[]>([]);
+  const [globalCategories, setGlobalCategories] = useState<string[]>([]);
   
   // States do formulário de Novo Cliente
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formCompany, setFormCompany] = useState('');
+
+  // States do formulário de Catálogo
+  const [newCatName, setNewCatName] = useState('');
+  const [newMatName, setNewMatName] = useState('');
+  const [newMatCat, setNewMatCat] = useState('');
 
   const [showCredsModal, setShowCredsModal] = useState(false);
   const [selectedCreds, setSelectedCreds] = useState<StoredUser | null>(null);
@@ -37,6 +51,8 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
 
   useEffect(() => {
     setCompanies(getAllCompanies());
+    setGlobalCategories(getGlobalCategories());
+    setGlobalMaterials(getGlobalMaterials());
   }, []);
 
   const totalSlabs = companies.reduce((acc, c) => acc + getInventory(c.id).length, 0);
@@ -54,15 +70,26 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const handleCreateAccount = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formEmail || !formCompany) return;
-    
     createCompanyAccount(formName, formEmail, formCompany);
     setCompanies(getAllCompanies());
     setShowAddModal(false);
-    
-    // Reset form
-    setFormName(''); 
-    setFormEmail(''); 
-    setFormCompany('');
+    setFormName(''); setFormEmail(''); setFormCompany('');
+  };
+
+  const handleAddGlobalCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName) return;
+    addGlobalCategory(newCatName);
+    setGlobalCategories(getGlobalCategories());
+    setNewCatName('');
+  };
+
+  const handleAddGlobalMaterial = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMatName || !newMatCat) return;
+    addGlobalMaterial(newMatName, newMatCat);
+    setGlobalMaterials(getGlobalMaterials());
+    setNewMatName('');
   };
 
   return (
@@ -82,6 +109,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         <div className="flex bg-white p-2 rounded-[2rem] border border-slate-200 shadow-sm overflow-x-auto max-w-full scrollbar-hide">
           <button onClick={() => setActiveTab('dashboard')} className={`whitespace-nowrap px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:text-slate-900'}`}>Visão Geral</button>
           <button onClick={() => setActiveTab('clientes')} className={`whitespace-nowrap px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'clientes' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:text-slate-900'}`}>Marmorarias</button>
+          <button onClick={() => setActiveTab('catalogo')} className={`whitespace-nowrap px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'catalogo' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:text-slate-900'}`}>Catálogo Global</button>
           <button onClick={() => setActiveTab('financeiro')} className={`whitespace-nowrap px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'financeiro' ? 'bg-slate-900 text-white shadow-xl' : 'text-slate-400 hover:text-slate-900'}`}>Financeiro</button>
         </div>
       </div>
@@ -175,10 +203,119 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
         </div>
       )}
 
-      {/* MODAL: ONBOARDING CLIENTE (Agora fora da condicional de tab) */}
+      {/* CATALOGO TAB */}
+      {activeTab === 'catalogo' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 animate-slideUp">
+           {/* CATEGORIAS */}
+           <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+              <div className="flex items-center gap-4">
+                 <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Tag size={24} /></div>
+                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Categorias de Materiais</h3>
+              </div>
+              
+              <form onSubmit={handleAddGlobalCategory} className="flex gap-2">
+                 <input type="text" placeholder="Nova Categoria..." className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newCatName} onChange={e => setNewCatName(e.target.value)} />
+                 <button type="submit" className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-blue-600 transition-all"><Plus /></button>
+              </form>
+
+              <div className="grid grid-cols-2 gap-3">
+                 {globalCategories.map((cat, i) => (
+                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group">
+                      <span className="text-xs font-black uppercase text-slate-700 tracking-widest">{cat}</span>
+                   </div>
+                 ))}
+              </div>
+           </div>
+
+           {/* MATERIAIS */}
+           <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+              <div className="flex items-center gap-4">
+                 <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Package size={24} /></div>
+                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Catálogo de Materiais</h3>
+              </div>
+
+              <form onSubmit={handleAddGlobalMaterial} className="space-y-3">
+                 <div className="flex gap-2">
+                    <input type="text" placeholder="Nome do Material..." className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={newMatName} onChange={e => setNewMatName(e.target.value)} />
+                    <select className="w-40 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none uppercase text-[10px]" value={newMatCat} onChange={e => setNewMatCat(e.target.value)} required>
+                       <option value="">Categoria...</option>
+                       {globalCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                    <button type="submit" className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-emerald-600 transition-all"><Plus /></button>
+                 </div>
+              </form>
+
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
+                 {globalMaterials.map((mat, i) => (
+                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black uppercase text-slate-800 tracking-tight">{mat.name}</span>
+                        <span className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">{mat.category}</span>
+                      </div>
+                   </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* FINANCEIRO TAB */}
+      {activeTab === 'financeiro' && (
+        <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 animate-slideUp space-y-10">
+           <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><CreditCard size={24} /></div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Gestão de Mensalidades</h3>
+           </div>
+           <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                 <thead>
+                    <tr className="border-b border-slate-100">
+                       <th className="pb-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Marmoraria</th>
+                       <th className="pb-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Plano Mensal</th>
+                       <th className="pb-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                       <th className="pb-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-50">
+                    {companies.map(c => (
+                      <tr key={c.id} className="group">
+                         <td className="py-6 font-black text-slate-900 uppercase text-sm">{c.name}</td>
+                         <td className="py-6">
+                            <div className="flex items-center gap-2">
+                               <span className="text-xs font-bold text-slate-600">R$</span>
+                               <input 
+                                 type="number" 
+                                 className="w-24 p-2 bg-slate-50 rounded-xl font-black text-sm outline-none border border-transparent focus:border-blue-500" 
+                                 defaultValue={c.monthlyFee} 
+                                 onBlur={e => updateCompanyFee(c.id, Number(e.target.value))}
+                               />
+                            </div>
+                         </td>
+                         <td className="py-6">
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${c.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                               {c.status}
+                            </span>
+                         </td>
+                         <td className="py-6 text-right">
+                            <button 
+                              onClick={() => updateCompanyStatus(c.id, c.status === 'ACTIVE' ? CompanyStatus.SUSPENDED : CompanyStatus.ACTIVE)}
+                              className={`p-2 rounded-xl transition-all ${c.status === 'ACTIVE' ? 'bg-red-50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-emerald-50 text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
+                            >
+                               {c.status === 'ACTIVE' ? <Lock size={18} /> : <Unlock size={18} />}
+                            </button>
+                         </td>
+                      </tr>
+                    ))}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL: ONBOARDING CLIENTE */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl space-y-8 animate-popIn border border-white/10" key="onboarding-modal">
+          <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl space-y-8 animate-popIn border border-white/10">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-3xl font-black text-slate-900 uppercase leading-tight">Onboarding</h3>
@@ -194,45 +331,39 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
                  <label htmlFor="formName" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admin Responsável</label>
                  <input 
                     id="formName"
-                    name="formName"
                     type="text" 
                     placeholder="Nome completo do administrador"
-                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all" 
+                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 text-sm outline-none" 
                     value={formName} 
                     onChange={e => setFormName(e.target.value)} 
                     required 
-                    autoComplete="off"
                  />
                </div>
                <div className="space-y-1.5">
                  <label htmlFor="formCompany" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome da Marmoraria</label>
                  <input 
                     id="formCompany"
-                    name="formCompany"
                     type="text" 
                     placeholder="Ex: Marmoraria São João"
-                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all" 
+                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 text-sm outline-none" 
                     value={formCompany} 
                     onChange={e => setFormCompany(e.target.value)} 
                     required 
-                    autoComplete="off"
                  />
                </div>
                <div className="space-y-1.5">
                  <label htmlFor="formEmail" className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail Corporativo</label>
                  <input 
                     id="formEmail"
-                    name="formEmail"
                     type="email" 
                     placeholder="admin@marmoraria.com.br"
-                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all" 
+                    className="w-full p-5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 text-sm outline-none" 
                     value={formEmail} 
                     onChange={e => setFormEmail(e.target.value)} 
                     required 
-                    autoComplete="off"
                  />
                </div>
-               <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase shadow-xl hover:bg-emerald-600 transition-all active:scale-95 text-xs tracking-widest">
+               <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase shadow-xl hover:bg-emerald-600 transition-all text-xs tracking-widest">
                  ATIVAR UNIDADE AGORA
                </button>
             </form>
