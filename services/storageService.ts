@@ -6,6 +6,7 @@ export interface StoredUser extends User {
 }
 
 export interface GlobalMaterial {
+  uid?: string;
   name: string;
   category: string;
 }
@@ -49,6 +50,12 @@ export const addGlobalCategory = (categoryName: string): void => {
   }
 };
 
+export const removeGlobalCategory = (categoryName: string): void => {
+  const categories = getGlobalCategories();
+  const filtered = categories.filter(cat => cat !== categoryName);
+  localStorage.setItem(KEYS.GLOBAL_CATEGORIES, JSON.stringify(filtered));
+};
+
 export const getGlobalMaterials = (): GlobalMaterial[] => {
   const defaults: GlobalMaterial[] = [
     { name: 'Preto São Gabriel', category: 'Granito' },
@@ -58,15 +65,23 @@ export const getGlobalMaterials = (): GlobalMaterial[] => {
     { name: 'Cinza Absoluto', category: 'Quartzo' },
     { name: 'Mármore Carrara', category: 'Mármore' }
   ];
-  return safeJSONParse(KEYS.GLOBAL_MATERIALS, defaults);
+  const stored = localStorage.getItem(KEYS.GLOBAL_MATERIALS);
+  if (!stored) return defaults;
+  return JSON.parse(stored);
 };
 
 export const addGlobalMaterial = (name: string, category: string): void => {
   const materials = getGlobalMaterials();
   if (!materials.find(m => m.name.toLowerCase() === name.toLowerCase())) {
-    materials.push({ name, category });
+    materials.push({ name, category, uid: `GLOB-${Date.now()}` });
     localStorage.setItem(KEYS.GLOBAL_MATERIALS, JSON.stringify(materials));
   }
+};
+
+export const removeGlobalMaterial = (name: string): void => {
+  const materials = getGlobalMaterials();
+  const filtered = materials.filter(m => m.name !== name);
+  localStorage.setItem(KEYS.GLOBAL_MATERIALS, JSON.stringify(filtered));
 };
 
 // --- AUTH & SESSION ---

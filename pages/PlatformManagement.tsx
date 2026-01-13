@@ -13,11 +13,13 @@ import {
   getGlobalMaterials,
   addGlobalCategory,
   addGlobalMaterial,
+  removeGlobalCategory,
+  removeGlobalMaterial,
   GlobalMaterial
 } from '../services/storageService';
 import { 
   Users, Search, Lock, Unlock, UserPlus, X, Key, Globe, 
-  Database, Wallet, TrendingUp, BarChart3, CreditCard, LayoutGrid, Check, Copy, AlertCircle, Plus, BookOpen, Tag, Package
+  Database, Wallet, TrendingUp, BarChart3, CreditCard, LayoutGrid, Check, Copy, AlertCircle, Plus, BookOpen, Tag, Package, Trash2
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -84,12 +86,26 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
     setNewCatName('');
   };
 
+  const handleRemoveCategory = (cat: string) => {
+    if (window.confirm(`Deseja remover a categoria "${cat}" do catálogo global?`)) {
+      removeGlobalCategory(cat);
+      setGlobalCategories(getGlobalCategories());
+    }
+  };
+
   const handleAddGlobalMaterial = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMatName || !newMatCat) return;
     addGlobalMaterial(newMatName, newMatCat);
     setGlobalMaterials(getGlobalMaterials());
     setNewMatName('');
+  };
+
+  const handleRemoveMaterial = (name: string) => {
+    if (window.confirm(`Deseja remover o material "${name}" do catálogo global?`)) {
+      removeGlobalMaterial(name);
+      setGlobalMaterials(getGlobalMaterials());
+    }
   };
 
   return (
@@ -220,8 +236,11 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
 
               <div className="grid grid-cols-2 gap-3">
                  {globalCategories.map((cat, i) => (
-                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group">
+                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-red-100 transition-all">
                       <span className="text-xs font-black uppercase text-slate-700 tracking-widest">{cat}</span>
+                      <button onClick={() => handleRemoveCategory(cat)} className="p-2 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
+                         <Trash2 size={16} />
+                      </button>
                    </div>
                  ))}
               </div>
@@ -247,11 +266,14 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
 
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
                  {globalMaterials.map((mat, i) => (
-                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group">
+                   <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:border-red-100 transition-all">
                       <div className="flex flex-col">
                         <span className="text-sm font-black uppercase text-slate-800 tracking-tight">{mat.name}</span>
                         <span className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">{mat.category}</span>
                       </div>
+                      <button onClick={() => handleRemoveMaterial(mat.name)} className="p-2 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
+                         <Trash2 size={16} />
+                      </button>
                    </div>
                  ))}
               </div>
