@@ -64,7 +64,8 @@ export interface CutHistoryRecord {
 }
 
 export interface InventoryItem {
-  id: string; 
+  uid: string; // ID Único de Banco de Dados
+  id: string;  // ID de Série Visual (ex: 0001) - Pode ser duplicado entre sobras
   entryIndex: number; 
   companyId: string;
   category: string;

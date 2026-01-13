@@ -73,12 +73,17 @@ export const logout = () => { localStorage.removeItem(KEYS.SESSION); };
 
 export const saveItem = (item: InventoryItem): void => {
   const inventory: InventoryItem[] = safeJSONParse(KEYS.INVENTORY, []);
-  const index = inventory.findIndex(i => i.id === item.id);
+  const index = inventory.findIndex(i => i.uid === item.uid);
   if (index >= 0) inventory[index] = item; else inventory.push(item);
   localStorage.setItem(KEYS.INVENTORY, JSON.stringify(inventory));
 };
 
+export const getItemByUid = (uid: string, companyId: string): InventoryItem | undefined => {
+  return getInventory(companyId).find(i => i.uid === uid);
+};
+
 export const getItemById = (id: string, companyId: string): InventoryItem | undefined => {
+  // Retorna o primeiro encontrado por ID de série (útil para scanner rápido)
   return getInventory(companyId).find(i => i.id === id);
 };
 

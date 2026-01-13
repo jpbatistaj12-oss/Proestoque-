@@ -20,6 +20,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
   const [nextIndex, setNextIndex] = useState(1);
   
   const [formData, setFormData] = useState({
+    uid: '',
     id: '', 
     category: 'Granito',
     commercialName: '',
@@ -54,6 +55,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
     
     if (existing) {
       setFormData({
+        uid: existing.uid,
         id: existing.id,
         category: existing.category,
         commercialName: existing.commercialName,
@@ -113,6 +115,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
       };
     } else {
       itemToSave = {
+        uid: `ITEM-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         id: generatedSerial, // Agora é puramente numérico (ex: 0001)
         entryIndex: nextIndex,
         companyId: companyId,

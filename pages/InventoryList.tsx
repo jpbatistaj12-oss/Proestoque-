@@ -6,7 +6,7 @@ import { Search, Package, CheckCircle, AlertCircle, Ruler, MapPin, QrCode, FileX
 
 interface InventoryListProps {
   inventory: InventoryItem[];
-  onSelectItem: (id: string) => void;
+  onSelectItem: (uid: string) => void;
   onNewItem: () => void;
   onScan: () => void;
   initialFilter?: string;
@@ -20,30 +20,30 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
   
   // Estados de Filtros Rápidos
   const [isShowingZeroStock, setIsShowingZeroStock] = useState(false);
-  const [isShowingAvailableOnly, setIsShowingAvailableOnly] = useState(false);
+  const [isShowingInteirasOnly, setIsShowingInteirasOnly] = useState(false);
   const [isShowingSobrasOnly, setIsShowingSobrasOnly] = useState(false);
 
   useEffect(() => {
+    // Reseta filtros antes de aplicar o novo vindo do Dashboard
+    setIsShowingZeroStock(false);
+    setIsShowingInteirasOnly(false);
+    setIsShowingSobrasOnly(false);
+
     if (initialFilter === 'zerado') {
       setIsShowingZeroStock(true);
-      setIsShowingAvailableOnly(false);
-      setIsShowingSobrasOnly(false);
-    } else if (initialFilter === 'disponivel') {
-      setIsShowingAvailableOnly(true);
-      setIsShowingZeroStock(false);
-      setIsShowingSobrasOnly(false);
+    } else if (initialFilter === 'inteira') {
+      setIsShowingInteirasOnly(true);
     } else if (initialFilter === 'sobra') {
       setIsShowingSobrasOnly(true);
-      setIsShowingZeroStock(false);
-      setIsShowingAvailableOnly(false);
     }
   }, [initialFilter]);
 
   const filteredItems = useMemo(() => {
     let result = inventory.filter(item => {
-      if (isShowingZeroStock && item.quantity > 0) return false;
-      if (isShowingAvailableOnly && item.quantity <= 0) return false;
-      if (isShowingSobrasOnly && item.status !== StockStatus.COM_SOBRA) return false;
+      // Regras de filtragem estritas conforme solicitado
+      if (isShowingZeroStock && Number(item.quantity) > 0) return false;
+      if (isShowingInteirasOnly && (Number(item.quantity) <= 0 || item.status === StockStatus.COM_SOBRA)) return false;
+      if (isShowingSobrasOnly && (Number(item.quantity) <= 0 || item.status !== StockStatus.COM_SOBRA)) return false;
 
       const lowerSearch = searchTerm.toLowerCase();
       const matchesSearch = item.commercialName.toLowerCase().includes(lowerSearch) || 
@@ -57,11 +57,11 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
     return result.sort((a, b) => {
       return sortOrder === 'asc' ? a.entryIndex - b.entryIndex : b.entryIndex - a.entryIndex;
     });
-  }, [inventory, searchTerm, filterCategory, sortOrder, isShowingZeroStock, isShowingAvailableOnly, isShowingSobrasOnly]);
+  }, [inventory, searchTerm, filterCategory, sortOrder, isShowingZeroStock, isShowingInteirasOnly, isShowingSobrasOnly]);
 
   const clearFilters = () => {
     setIsShowingZeroStock(false);
-    setIsShowingAvailableOnly(false);
+    setIsShowingInteirasOnly(false);
     setIsShowingSobrasOnly(false);
     setSearchTerm('');
     setFilterCategory('all');
@@ -71,21 +71,21 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
       {/* Banner de Filtro Ativo */}
-      {(isShowingZeroStock || isShowingAvailableOnly || isShowingSobrasOnly) && (
+      {(isShowingZeroStock || isShowingInteirasOnly || isShowingSobrasOnly) && (
         <div className={`p-4 rounded-3xl flex items-center justify-between animate-fadeIn border ${
           isShowingZeroStock ? 'bg-red-50 border-red-100 text-red-700' : 
-          isShowingAvailableOnly ? 'bg-green-50 border-green-100 text-green-700' : 
+          isShowingInteirasOnly ? 'bg-green-50 border-green-100 text-green-700' : 
           'bg-purple-50 border-purple-100 text-purple-700'
         }`}>
           <div className="flex items-center gap-3">
-             {isShowingZeroStock ? <AlertCircle size={20}/> : isShowingAvailableOnly ? <CheckCircle size={20}/> : <Scissors size={20}/>}
+             {isShowingZeroStock ? <AlertCircle size={20}/> : isShowingInteirasOnly ? <CheckCircle size={20}/> : <Scissors size={20}/>}
              <p className="text-xs font-black uppercase tracking-widest">
-               {isShowingZeroStock ? 'Exibindo: Itens esgotados' : 
-                isShowingAvailableOnly ? 'Exibindo: Itens disponíveis para uso' : 
-                'Exibindo: Apenas retalhos e sobras'}
+               {isShowingZeroStock ? 'Exibindo: Materiais com estoque zerado' : 
+                isShowingInteirasOnly ? 'Exibindo: Chapas inteiras disponíveis' : 
+                'Exibindo: Apenas sobras e retalhos de corte'}
              </p>
           </div>
-          <button onClick={clearFilters} className="px-4 py-2 bg-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm border border-transparent hover:border-slate-200 transition-all">Ver Todos</button>
+          <button onClick={clearFilters} className="px-4 py-2 bg-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm border border-transparent hover:border-slate-200 transition-all">Ver Tudo</button>
         </div>
       )}
 
@@ -121,7 +121,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
       {filteredItems.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map(item => (
-            <div key={item.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col hover:shadow-xl transition-all group">
+            <div key={item.uid} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col hover:shadow-xl transition-all group">
               <div className={`h-2 ${item.status === StockStatus.COM_SOBRA ? 'bg-purple-500' : (item.quantity <= 0 ? 'bg-red-500' : 'bg-slate-900')}`}></div>
               <div className="p-8 space-y-5">
                 <div className="flex justify-between items-start">
@@ -133,7 +133,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
                      <span className={`px-3 py-1 rounded-xl text-[8px] font-black uppercase border-2 ${STATUS_COLORS[item.status]}`}>
                         {item.status}
                      </span>
-                     <p className="text-[10px] text-slate-400 font-bold uppercase mt-2">ID: {item.id}</p>
+                     <p className="text-[10px] text-slate-400 font-bold uppercase mt-2">SÉRIE: {item.id}</p>
                   </div>
                 </div>
 
@@ -153,7 +153,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
                    </div>
                 </div>
 
-                <button onClick={() => onSelectItem(item.id)} className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all active:scale-95 shadow-lg">
+                <button onClick={() => onSelectItem(item.uid)} className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all active:scale-95 shadow-lg">
                   <QrCode size={16} /> GERENCIAR
                 </button>
               </div>
@@ -164,7 +164,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
         <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[3rem] border border-dashed border-slate-200">
           <FileX size={64} className="text-slate-100 mb-4" />
           <h3 className="text-xl font-black text-slate-900 uppercase">Estoque Vazio</h3>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Tente alterar os filtros de busca.</p>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Nenhum material encontrado nestes critérios.</p>
         </div>
       )}
     </div>

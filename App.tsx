@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NAV_ITEMS, APP_NAME } from './constants';
 import { InventoryItem, User, UserRole } from './types';
 import { getInventory, getCurrentUser, logout, getAllCompanies } from './services/storageService';
-import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings } from 'lucide-react';
+import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle } from 'lucide-react';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -21,10 +21,15 @@ import SupportBot from './components/SupportBot';
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItemUid, setSelectedItemUid] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isAppReady, setIsAppReady] = useState(false);
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
+  const [inventoryFilter, setInventoryFilter] = useState<string | undefined>(undefined);
+  
+  // States para Notificações
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const sessionUser = getCurrentUser();
@@ -38,6 +43,15 @@ const App: React.FC = () => {
       }
     }
     setIsAppReady(true);
+
+    // Fechar notificações ao clicar fora
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const refreshInventory = (companyId: string) => {
@@ -45,9 +59,15 @@ const App: React.FC = () => {
     setInventory(data || []);
   };
 
-  const handleSelectItem = (id: string) => {
-    setSelectedItemId(id);
+  const handleSelectItem = (uid: string) => {
+    setSelectedItemUid(uid);
     setActiveTab('detail');
+    setShowNotifications(false);
+  };
+
+  const handleFilterRequest = (filter: string) => {
+    setInventoryFilter(filter);
+    setActiveTab('inventory');
   };
 
   const handleLogout = () => {
@@ -60,41 +80,50 @@ const App: React.FC = () => {
   const currentCompanyId = impersonatedCompanyId || user?.companyId || '';
   const impersonatedCompanyName = impersonatedCompanyId ? getAllCompanies().find(c => c.id === impersonatedCompanyId)?.name : null;
 
-  // Filtrar itens do menu com base no contexto (Plataforma vs Cliente)
+  // Itens com estoque zerado para o alerta do sino
+  const zeroStockItems = inventory.filter(item => Number(item.quantity) <= 0);
+
   const menuItems = NAV_ITEMS.filter(item => {
     if (!user) return false;
-    
-    // Super Admin na Plataforma
     if (user.role === UserRole.SUPER_ADMIN && !impersonatedCompanyId) {
       return item.id === 'platform';
     }
-    
-    // Super Admin personificando ou Cliente comum
     if (impersonatedCompanyId || user.role !== UserRole.SUPER_ADMIN) {
       return item.id !== 'platform';
     }
-
     return false;
   });
 
   const renderContent = () => {
-    if (selectedItemId && activeTab === 'detail') {
+    if (selectedItemUid && activeTab === 'detail') {
       return (
         <ItemDetail 
-          itemId={selectedItemId} 
+          itemUid={selectedItemUid} 
           companyId={currentCompanyId}
-          onBack={() => { setActiveTab('inventory'); setSelectedItemId(null); }} 
+          onBack={() => { setActiveTab('inventory'); setSelectedItemUid(null); }} 
           onUpdate={() => refreshInventory(currentCompanyId)}
         />
       );
     }
 
     switch (activeTab) {
-      case 'dashboard': return <Dashboard inventory={inventory} onSelectItem={handleSelectItem} onFilterRequest={(f) => setActiveTab('inventory')} />;
-      case 'inventory': return <InventoryList inventory={inventory} onSelectItem={handleSelectItem} onNewItem={() => setActiveTab('add')} onScan={() => setActiveTab('scanner')} />;
+      case 'dashboard': return <Dashboard inventory={inventory} onSelectItem={handleSelectItem} onFilterRequest={handleFilterRequest} />;
+      case 'inventory': return (
+        <InventoryList 
+          inventory={inventory} 
+          onSelectItem={handleSelectItem} 
+          onNewItem={() => setActiveTab('add')} 
+          onScan={() => setActiveTab('scanner')} 
+          initialFilter={inventoryFilter}
+          onFilterCleared={() => setInventoryFilter(undefined)}
+        />
+      );
       case 'projects': return <ProjectSearch inventory={inventory} onSelectItem={handleSelectItem} />;
       case 'add': return <AddItem onComplete={() => { refreshInventory(currentCompanyId); setActiveTab('inventory'); }} user={user!} companyId={currentCompanyId} />;
-      case 'scanner': return <QRScanner onScan={handleSelectItem} />;
+      case 'scanner': return <QRScanner onScan={(id) => {
+        const item = inventory.find(i => i.id === id);
+        if (item) handleSelectItem(item.uid);
+      }} />;
       case 'team': return <TeamManagement user={{ id: user!.id, companyId: currentCompanyId }} />;
       case 'history': return <HistoryLog inventory={inventory} />;
       case 'platform': return <PlatformManagement onImpersonate={(id) => { setImpersonatedCompanyId(id); refreshInventory(id); setActiveTab('dashboard'); }} />;
@@ -133,7 +162,7 @@ const App: React.FC = () => {
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); setSelectedItemId(null); }}
+              onClick={() => { setActiveTab(item.id); setSelectedItemUid(null); setInventoryFilter(undefined); }}
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
                 activeTab === item.id 
                 ? 'bg-blue-600 text-white shadow-2xl shadow-blue-900/30' 
@@ -164,8 +193,67 @@ const App: React.FC = () => {
             )}
           </div>
           
-          <div className="flex items-center gap-8">
-             <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
+          <div className="flex items-center gap-6">
+             {/* SINO DE NOTIFICAÇÃO */}
+             <div className="relative" ref={notificationRef}>
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className={`p-3 rounded-2xl transition-all relative ${showNotifications ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                >
+                   <Bell size={24} className={zeroStockItems.length > 0 && !showNotifications ? 'animate-bounce-slow' : ''} />
+                   {zeroStockItems.length > 0 && (
+                     <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
+                        {zeroStockItems.length}
+                     </span>
+                   )}
+                </button>
+
+                {/* PAINEL DE NOTIFICAÇÕES */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-4 w-80 bg-white rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden animate-popIn z-[100]">
+                    <div className="bg-slate-900 p-5 text-white flex justify-between items-center">
+                       <h4 className="text-[10px] font-black uppercase tracking-widest">Alertas de Compra</h4>
+                       <ShoppingCart size={16} className="text-blue-400" />
+                    </div>
+                    <div className="max-h-[350px] overflow-y-auto p-2 scrollbar-hide">
+                       {zeroStockItems.length > 0 ? (
+                         zeroStockItems.map(item => (
+                           <div 
+                             key={item.uid} 
+                             onClick={() => handleSelectItem(item.uid)}
+                             className="p-4 hover:bg-slate-50 rounded-2xl cursor-pointer flex items-center gap-4 transition-all group"
+                           >
+                              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors">
+                                 <AlertCircle size={20} />
+                              </div>
+                              <div className="min-w-0">
+                                 <p className="text-xs font-black text-slate-900 uppercase truncate">{item.commercialName}</p>
+                                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">SÉRIE: {item.id} • ESTOQUE ZERADO</p>
+                              </div>
+                           </div>
+                         ))
+                       ) : (
+                         <div className="p-10 text-center space-y-3 opacity-40">
+                            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto"><Bell size={20} /></div>
+                            <p className="text-[9px] font-black uppercase tracking-widest">Nenhum alerta pendente</p>
+                         </div>
+                       )}
+                    </div>
+                    {zeroStockItems.length > 0 && (
+                      <div className="p-4 bg-slate-50 border-t border-slate-100">
+                         <button 
+                           onClick={() => { setActiveTab('inventory'); setInventoryFilter('zerado'); setShowNotifications(false); }}
+                           className="w-full py-3 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-900 hover:text-white transition-all"
+                         >
+                            Ver todos os itens zerados
+                         </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+             </div>
+
+             <div className="flex items-center gap-4 border-l border-slate-200 pl-6">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-black text-slate-900 leading-none">{user.name}</p>
                   <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-2">{user.role}</p>

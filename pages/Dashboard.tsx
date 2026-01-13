@@ -2,28 +2,45 @@
 import React from 'react';
 import { InventoryItem, StockStatus } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Maximize2, AlertCircle, Package, AlertTriangle, ArrowRight, CheckCircle } from 'lucide-react';
+import { Package, AlertTriangle, CheckCircle, Scissors } from 'lucide-react';
 
 interface DashboardProps {
   inventory: InventoryItem[];
-  onSelectItem: (id: string) => void;
+  onSelectItem: (uid: string) => void;
   onFilterRequest?: (filter: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilterRequest }) => {
-  const totalArea = inventory.reduce((acc, item) => acc + (item.availableArea * item.quantity), 0);
-  const totalQuantity = inventory.reduce((acc, item) => acc + item.quantity, 0);
-  const zeroStockCount = inventory.filter(item => item.quantity <= 0).length;
-  const itemsLeftover = inventory.filter(item => item.status === StockStatus.COM_SOBRA).length;
+  // Quantidade total de chapas inteiras (disponíveis e não são sobras)
+  const wholePlatesCount = inventory.reduce((acc, item) => {
+    if (item.status !== StockStatus.COM_SOBRA && Number(item.quantity) > 0) {
+      return acc + Number(item.quantity);
+    }
+    return acc;
+  }, 0);
 
+  // Itens que estão com estoque zerado
+  const zeroStockCount = inventory.filter(item => Number(item.quantity) <= 0).length;
+
+  // Quantidade de retalhos/sobras em estoque
+  const sobrasCount = inventory.reduce((acc, item) => {
+    if (item.status === StockStatus.COM_SOBRA && Number(item.quantity) > 0) {
+      return acc + Number(item.quantity);
+    }
+    return acc;
+  }, 0);
+
+  // Dados para o gráfico por categoria (m² acumulado)
   const dataByCategory = Object.entries(
     inventory.reduce((acc, item) => {
-      acc[item.category] = (acc[item.category] || 0) + (item.availableArea * item.quantity);
+      const area = Number(item.availableArea) || 0;
+      const qty = Number(item.quantity) || 0;
+      acc[item.category] = (acc[item.category] || 0) + (area * qty);
       return acc;
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ 
     name, 
-    value: Number((value as number).toFixed(2)) 
+    value: Number(value.toFixed(2)) 
   }));
 
   const recentItems = [...inventory]
@@ -34,46 +51,44 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
 
   return (
     <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto pb-10">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-        <StatCard 
-          title="Área Total" 
-          value={`${totalArea.toFixed(1)} m²`} 
-          icon={<Maximize2 size={20} className="text-blue-500" />} 
-        />
+      {/* Grid de Indicadores Principais */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div 
-          onClick={() => onFilterRequest && onFilterRequest('disponivel')}
-          className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+          onClick={() => onFilterRequest && onFilterRequest('inteira')}
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95"
         >
           <StatCard 
             title="Chapas em Estoque" 
-            value={totalQuantity} 
-            icon={<CheckCircle size={20} className="text-green-500" />} 
-            subtitle="Clique para ver disponíveis"
-            color="hover:border-green-200 hover:bg-green-50/30 shadow-sm"
+            value={wholePlatesCount} 
+            icon={<CheckCircle size={24} className="text-emerald-500" />} 
+            subtitle="Materiais inteiros disponíveis"
+            color="border-emerald-100 hover:bg-emerald-50/30 shadow-sm"
           />
         </div>
+
         <div 
           onClick={() => onFilterRequest && onFilterRequest('zerado')}
-          className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95"
         >
           <StatCard 
             title="Estoque Zerado" 
             value={zeroStockCount} 
-            icon={<AlertTriangle size={20} className={zeroStockCount > 0 ? "text-red-500" : "text-slate-300"} />} 
-            color={zeroStockCount > 0 ? "border-red-200 bg-red-50" : "hover:border-red-100 shadow-sm"}
-            subtitle="Clique para filtrar"
+            icon={<AlertTriangle size={24} className={zeroStockCount > 0 ? "text-red-500" : "text-slate-300"} />} 
+            color={zeroStockCount > 0 ? "border-red-200 bg-red-50" : "border-slate-100 shadow-sm"}
+            subtitle="Materiais sem saldo"
           />
         </div>
+
         <div 
           onClick={() => onFilterRequest && onFilterRequest('sobra')}
-          className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+          className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-95"
         >
           <StatCard 
             title="Estoque de Sobras" 
-            value={itemsLeftover} 
-            icon={<AlertCircle size={20} className="text-purple-500" />} 
-            color={itemsLeftover > 0 ? "border-purple-200 bg-purple-50" : "hover:border-purple-100 shadow-sm"}
-            subtitle="Ver retalhos de corte"
+            value={sobrasCount} 
+            icon={<Scissors size={24} className="text-purple-500" />} 
+            color={sobrasCount > 0 ? "border-purple-200 bg-purple-50" : "border-slate-100 shadow-sm"}
+            subtitle="Retalhos e recortes de corte"
           />
         </div>
       </div>
@@ -81,7 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-100">
           <div className="flex justify-between items-center mb-8">
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">Estoque por Categoria</h3>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight uppercase">M² por Categoria</h3>
             <div className="px-3 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 rounded-lg uppercase tracking-widest border border-slate-100">m² Acumulado</div>
           </div>
           <div className="h-[350px]">
@@ -115,33 +130,37 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
 
         <div className="lg:col-span-5 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-black text-slate-900 tracking-tight">Entradas Recentes</h3>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight uppercase">Entradas Recentes</h3>
           </div>
-          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-            {recentItems.length > 0 ? recentItems.map(item => (
-              <div 
-                key={item.id} 
-                onClick={() => onSelectItem(item.id)}
-                className="flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white rounded-2xl cursor-pointer transition-all border border-transparent hover:border-slate-100 hover:shadow-md group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <img src={item.photos[0]} className="w-14 h-14 rounded-2xl object-cover shadow-sm group-hover:rotate-3 transition-transform" alt="" />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center border border-slate-100">
-                      <div className={`w-2 h-2 rounded-full ${item.quantity > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-hide">
+            {recentItems.length > 0 ? recentItems.map(item => {
+              const itemQty = Number(item.quantity) || 0;
+              const itemArea = Number(item.availableArea) || 0;
+              return (
+                <div 
+                  key={item.uid} 
+                  onClick={() => onSelectItem(item.uid)}
+                  className="flex items-center justify-between p-4 bg-slate-50/50 hover:bg-white rounded-2xl cursor-pointer transition-all border border-transparent hover:border-slate-100 hover:shadow-md group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <img src={item.photos[0] || 'https://via.placeholder.com/150'} className="w-14 h-14 rounded-2xl object-cover shadow-sm group-hover:rotate-3 transition-transform" alt="" />
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center border border-slate-100">
+                        <div className={`w-2 h-2 rounded-full ${itemQty > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-800 text-sm group-hover:text-blue-600 transition-colors uppercase truncate max-w-[150px]">{item.commercialName}</p>
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{item.category} • Qtd: {itemQty}</p>
                     </div>
                   </div>
-                  <div>
-                    <p className="font-black text-slate-800 text-sm group-hover:text-blue-600 transition-colors uppercase truncate max-w-[120px]">{item.commercialName}</p>
-                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{item.category} • Qtd: {item.quantity}</p>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-black text-slate-900 tracking-tighter">{(itemArea * itemQty).toFixed(2)} m²</p>
+                    <p className="text-[9px] text-slate-400 font-bold tracking-widest">{item.id}</p>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-black text-slate-900 tracking-tighter">{(item.availableArea * item.quantity).toFixed(2)} m²</p>
-                  <p className="text-[9px] text-slate-400 font-bold tracking-widest">{item.id}</p>
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="flex-1 flex flex-col items-center justify-center py-20 opacity-40 grayscale">
                  <Package size={48} className="mb-4 text-slate-200" />
                  <p className="text-[10px] font-black uppercase tracking-widest">Nenhum material cadastrado</p>
@@ -155,12 +174,12 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
 };
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color?: string; subtitle?: string }> = ({ title, value, icon, color, subtitle }) => (
-  <div className={`bg-white p-6 rounded-3xl shadow-sm border ${color || 'border-slate-100'} flex items-center gap-5 hover:shadow-lg transition-all h-full`}>
-    <div className="bg-slate-50 p-4 rounded-2xl shrink-0 shadow-inner border border-slate-100/50">{icon}</div>
+  <div className={`bg-white p-8 rounded-[2.5rem] shadow-sm border ${color || 'border-slate-100'} flex flex-col items-center text-center gap-4 hover:shadow-xl transition-all h-full relative overflow-hidden group`}>
+    <div className="bg-white p-5 rounded-[1.5rem] shadow-inner border border-slate-100 group-hover:scale-110 transition-transform">{icon}</div>
     <div className="min-w-0">
-      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1 truncate">{title}</p>
-      <p className="text-2xl font-black text-slate-900 truncate tracking-tighter leading-none">{value}</p>
-      {subtitle && <p className="text-[8px] text-slate-400 font-bold uppercase mt-1 tracking-widest">{subtitle}</p>}
+      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mb-1">{title}</p>
+      <p className="text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
+      {subtitle && <p className="text-[8px] text-slate-400 font-bold uppercase mt-3 tracking-widest">{subtitle}</p>}
     </div>
   </div>
 );

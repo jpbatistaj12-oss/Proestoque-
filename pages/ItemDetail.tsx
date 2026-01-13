@@ -1,22 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { InventoryItem, StockStatus, CutHistoryRecord, User } from '../types';
-import { getItemById, saveItem, getCurrentUser, getInventory } from '../services/storageService';
+import { getItemByUid, saveItem, getCurrentUser, getInventory } from '../services/storageService';
 import { STATUS_COLORS } from '../constants';
-import { ArrowLeft, Scissors, Ruler, Plus, X as XIcon, ShoppingBag, Maximize2, MapPin, History } from 'lucide-react';
+import { ArrowLeft, Scissors, Ruler, Plus, X as XIcon, ShoppingBag, Maximize2, MapPin, History, PackagePlus, Save } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface ItemDetailProps {
-  itemId: string;
+  itemUid: string;
   companyId: string;
   onBack: () => void;
   onUpdate: () => void;
 }
 
-const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUpdate }) => {
+const ItemDetail: React.FC<ItemDetailProps> = ({ itemUid, companyId, onBack, onUpdate }) => {
   const [item, setItem] = useState<InventoryItem | undefined>();
   const [showUsageModal, setShowUsageModal] = useState(false);
-  const [usageType, setUsageType] = useState<'BAIXA' | 'SOBRA'>('BAIXA');
+  const [usageType, setUsageType] = useState<'BAIXA' | 'SOBRA' | 'ENTRADA'>('BAIXA');
   const [project, setProject] = useState('');
   const [client, setClient] = useState('');
   const [observations, setObservations] = useState('');
@@ -29,23 +29,32 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
   const [leftoverWidth, setLeftoverWidth] = useState<number>(0);
   const [leftoverHeight, setLeftoverHeight] = useState<number>(0);
   
+  // Entrada de Material
+  const [quantityToAdd, setQuantityToAdd] = useState<number>(1);
+
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const currentItem = getItemById(itemId, companyId);
+    const currentItem = getItemByUid(itemUid, companyId);
     setItem(currentItem);
     setUser(getCurrentUser());
     if (currentItem) {
       setLeftoverWidth(currentItem.width);
       setLeftoverHeight(currentItem.height);
     }
-  }, [itemId, companyId]);
+  }, [itemUid, companyId]);
 
   if (!item) return <div className="p-20 text-center font-black uppercase">Carregando...</div>;
 
   const handleRegisterUsage = () => {
-    if (item.quantity <= 0) return alert('Estoque esgotado.');
-    if (!project || !client) return alert('Identificação é obrigatória.');
+    if (usageType !== 'ENTRADA' && item.quantity <= 0) return alert('Estoque esgotado.');
+    
+    // Validações básicas por tipo
+    if (usageType === 'ENTRADA') {
+        if (quantityToAdd <= 0) return alert('Informe uma quantidade válida.');
+    } else {
+        if (!project || !client) return alert('Identificação (Cliente/Projeto) é obrigatória.');
+    }
 
     let newQuantity = item.quantity;
     let newWidth = item.width;
@@ -53,67 +62,71 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
     let newStatus = item.status;
     let areaSold = 0;
 
-    if (usageType === 'BAIXA') {
+    if (usageType === 'ENTRADA') {
+        newQuantity = item.quantity + quantityToAdd;
+        newStatus = StockStatus.DISPONIVEL;
+    } else if (usageType === 'BAIXA') {
       newQuantity = item.quantity - 1;
       newStatus = newQuantity <= 0 ? StockStatus.ESGOTADO : item.status;
       areaSold = (item.width * item.height) / 10000;
-    } else {
+    } else if (usageType === 'SOBRA') {
       if (leftoverWidth <= 0 || leftoverHeight <= 0 || cutWidth <= 0 || cutHeight <= 0) {
         return alert("Informe as medidas da peça que saiu e da sobra.");
       }
       areaSold = (cutWidth * cutHeight) / 10000;
 
-      if (item.quantity > 1) {
-        newQuantity = item.quantity - 1;
-        // Cria novo registro para a SOBRA no estoque
-        const allItems = getInventory(companyId);
-        const lastIdx = allItems.reduce((max, i) => Math.max(max, i.entryIndex || 0), 0);
-        const nextIdx = lastIdx + 1;
+      // Decrementa 1 do item original
+      newQuantity = item.quantity - 1;
+      newStatus = newQuantity <= 0 ? StockStatus.ESGOTADO : item.status;
 
-        saveItem({
-          ...item,
-          id: nextIdx.toString().padStart(4, '0'),
-          entryIndex: nextIdx,
-          width: leftoverWidth,
-          height: leftoverHeight,
-          availableArea: (leftoverWidth * leftoverHeight) / 10000,
-          quantity: 1,
-          status: StockStatus.COM_SOBRA,
-          history: [{
-            id: `SOB-${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            project: `Sobra de ${item.commercialName}`,
-            clientName: 'Estoque de Retalhos',
-            type: 'ENTRADA',
-            quantityChange: 1,
-            operatorName: user?.name || 'Sistema',
-            areaUsed: 0
-          }]
-        });
-      } else {
-        // A chapa atual vira sobra com novas medidas
-        newWidth = leftoverWidth;
-        newHeight = leftoverHeight;
-        newStatus = StockStatus.COM_SOBRA;
-      }
+      // Cria NOVO registro para a SOBRA, mas com o MESMO ID visual (id) do original
+      const sobraUid = `SOBRA-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const sobraItem: InventoryItem = {
+        ...item,
+        uid: sobraUid,
+        id: item.id, // MESMO ID VISUAL (ex: 0001)
+        width: leftoverWidth,
+        height: leftoverHeight,
+        availableArea: (leftoverWidth * leftoverHeight) / 10000,
+        quantity: 1,
+        status: StockStatus.COM_SOBRA,
+        history: [{
+          id: `H-SOB-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          project: `Retalho originado de ${item.commercialName}`,
+          clientName: 'Estoque de Sobras',
+          type: 'SOBRA',
+          quantityChange: 1,
+          operatorName: user?.name || 'Sistema',
+          areaUsed: 0,
+          leftoverWidth,
+          leftoverHeight
+        }]
+      };
+      saveItem(sobraItem);
     }
 
     const newRecord: CutHistoryRecord = {
       id: `MOV-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
-      project, clientName: client,
-      type: usageType === 'BAIXA' ? 'SAIDA' : 'SOBRA',
-      quantityChange: usageType === 'BAIXA' ? -1 : 0,
+      project: usageType === 'ENTRADA' ? 'Reposição de Estoque' : project,
+      clientName: usageType === 'ENTRADA' ? 'Almoxarifado' : client,
+      type: usageType === 'ENTRADA' ? 'ENTRADA' : (usageType === 'BAIXA' ? 'SAIDA' : 'SOBRA'),
+      quantityChange: usageType === 'ENTRADA' ? quantityToAdd : (usageType === 'BAIXA' ? -1 : (usageType === 'SOBRA' ? -1 : 0)),
       observations: observations + (usageType === 'SOBRA' ? ` [Corte p/ Cliente: ${cutWidth}x${cutHeight}]` : ''),
       operatorName: user?.name || 'Operador',
       areaUsed: areaSold,
       cutWidth, cutHeight, leftoverWidth, leftoverHeight
     };
 
+    // Salva atualização do item original (ou decrementado)
     saveItem({
       ...item,
-      quantity: newQuantity, width: newWidth, height: newHeight,
-      status: newStatus, history: [newRecord, ...item.history],
+      quantity: newQuantity, 
+      width: newWidth, 
+      height: newHeight,
+      status: newStatus, 
+      history: [newRecord, ...item.history],
       lastUpdatedAt: new Date().toISOString()
     });
 
@@ -129,7 +142,7 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
           <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-slate-900 group-hover:text-white transition-all"><ArrowLeft size={20} /></div>
           <span className="font-black text-[10px] uppercase tracking-widest">Painel de Estoque</span>
         </button>
-        <div className="bg-white px-5 py-2.5 rounded-2xl border border-slate-200 shadow-sm font-black text-slate-900 text-xs uppercase">REGISTRO: #{item.entryIndex}</div>
+        <div className="bg-white px-5 py-2.5 rounded-2xl border border-slate-200 shadow-sm font-black text-slate-900 text-xs uppercase">SÉRIE: {item.id}</div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -194,8 +207,11 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
 
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col items-center sticky top-8">
-             <div className="p-8 bg-slate-50 rounded-[3rem] shadow-inner mb-10 border border-slate-100/50"><QRCodeSVG value={`SERIE:${item.id}`} size={180} /></div>
+             <div className="p-8 bg-slate-50 rounded-[3rem] shadow-inner mb-10 border border-slate-100/50"><QRCodeSVG value={item.id} size={180} /></div>
              <div className="w-full space-y-4">
+                <button onClick={() => { setUsageType('ENTRADA'); setShowUsageModal(true); }} className="w-full bg-emerald-600 text-white py-5 rounded-[2rem] font-black uppercase flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all shadow-lg active:scale-95">
+                    <PackagePlus size={22} /> ADICIONAR ESTOQUE
+                </button>
                 <button onClick={() => { setUsageType('BAIXA'); setShowUsageModal(true); }} disabled={item.quantity <= 0} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase flex items-center justify-center gap-3 hover:bg-red-600 transition-all disabled:opacity-50">BAIXA TOTAL</button>
                 <button onClick={() => { setUsageType('SOBRA'); setShowUsageModal(true); }} disabled={item.quantity <= 0} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase flex items-center justify-center gap-3 hover:bg-blue-700 transition-all disabled:opacity-50">REGISTRAR CORTE</button>
              </div>
@@ -207,42 +223,80 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
         <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[400] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl space-y-8 animate-popIn">
             <div className="flex justify-between items-center">
-               <h3 className="text-2xl font-black text-slate-900 uppercase">{usageType === 'BAIXA' ? 'Baixa de Chapa' : 'Registrar Corte'}</h3>
+               <h3 className="text-2xl font-black text-slate-900 uppercase">
+                  {usageType === 'ENTRADA' ? 'Entrada de Material' : (usageType === 'BAIXA' ? 'Baixa de Chapa' : 'Registrar Corte')}
+               </h3>
                <button onClick={() => setShowUsageModal(false)} className="p-3 bg-slate-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"><XIcon size={24} /></button>
             </div>
 
             <div className="space-y-6">
-               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente</label>
-                    <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={client} onChange={e => setClient(e.target.value)} placeholder="Nome do Cliente" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra / Projeto</label>
-                    <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={project} onChange={e => setProject(e.target.value)} placeholder="Ex: Cozinha" />
-                  </div>
-               </div>
+               {usageType === 'ENTRADA' ? (
+                   <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1">Quantidade a Adicionar</label>
+                            <div className="relative">
+                                <Plus className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500" size={24} />
+                                <input 
+                                    type="number" 
+                                    className="w-full pl-14 p-5 bg-blue-50 border-2 border-blue-100 rounded-[2rem] font-black text-3xl text-blue-700 outline-none" 
+                                    value={quantityToAdd} 
+                                    onChange={e => setQuantityToAdd(Math.max(1, Number(e.target.value)))} 
+                                    min="1" 
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observações / Fornecedor</label>
+                            <input 
+                                type="text" 
+                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" 
+                                value={observations} 
+                                onChange={e => setObservations(e.target.value)} 
+                                placeholder="Opcional..." 
+                            />
+                        </div>
+                   </div>
+               ) : (
+                   <>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cliente</label>
+                            <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={client} onChange={e => setClient(e.target.value)} placeholder="Nome do Cliente" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Obra / Projeto</label>
+                            <input type="text" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={project} onChange={e => setProject(e.target.value)} placeholder="Ex: Cozinha" />
+                          </div>
+                       </div>
 
-               {usageType === 'SOBRA' && (
-                 <div className="space-y-6">
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
-                       <p className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2"><ShoppingBag size={14}/> PEÇA VENDIDA (VAI P/ CLIENTE)</p>
-                       <div className="grid grid-cols-2 gap-4">
-                          <input type="number" placeholder="Largura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={cutWidth || ''} onChange={e => setCutWidth(Number(e.target.value))} />
-                          <input type="number" placeholder="Altura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={cutHeight || ''} onChange={e => setCutHeight(Number(e.target.value))} />
-                       </div>
-                    </div>
-                    <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-200 space-y-4">
-                       <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2"><Scissors size={14}/> SOBRA (VOLTA PRO ESTOQUE)</p>
-                       <div className="grid grid-cols-2 gap-4">
-                          <input type="number" placeholder="Largura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={leftoverWidth || ''} onChange={e => setLeftoverWidth(Number(e.target.value))} />
-                          <input type="number" placeholder="Altura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={leftoverHeight || ''} onChange={e => setLeftoverHeight(Number(e.target.value))} />
-                       </div>
-                    </div>
-                 </div>
+                       {usageType === 'SOBRA' && (
+                         <div className="space-y-6">
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
+                               <p className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2"><ShoppingBag size={14}/> PEÇA VENDIDA (VAI P/ CLIENTE)</p>
+                               <div className="grid grid-cols-2 gap-4">
+                                  <input type="number" placeholder="Largura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={cutWidth || ''} onChange={e => setCutWidth(Number(e.target.value))} />
+                                  <input type="number" placeholder="Altura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={cutHeight || ''} onChange={e => setCutHeight(Number(e.target.value))} />
+                               </div>
+                            </div>
+                            <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-200 space-y-4">
+                               <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2"><Scissors size={14}/> SOBRA (VOLTA PRO ESTOQUE)</p>
+                               <div className="grid grid-cols-2 gap-4">
+                                  <input type="number" placeholder="Largura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={leftoverWidth || ''} onChange={e => setLeftoverWidth(Number(e.target.value))} />
+                                  <input type="number" placeholder="Altura cm" className="w-full p-3 bg-white border rounded-xl font-black" value={leftoverHeight || ''} onChange={e => setLeftoverHeight(Number(e.target.value))} />
+                               </div>
+                            </div>
+                         </div>
+                       )}
+                   </>
                )}
 
-               <button onClick={handleRegisterUsage} className="w-full py-6 rounded-[2rem] font-black uppercase text-white bg-slate-900 hover:bg-emerald-600 transition-all">CONFIRMAR E PROCESSAR</button>
+               <button 
+                  onClick={handleRegisterUsage} 
+                  className={`w-full py-6 rounded-[2rem] font-black uppercase text-white transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 ${usageType === 'ENTRADA' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-900 hover:bg-blue-600'}`}
+               >
+                  {usageType === 'ENTRADA' ? <Save size={20} /> : null}
+                  {usageType === 'ENTRADA' ? 'SALVAR ENTRADA' : 'CONFIRMAR E PROCESSAR'}
+               </button>
             </div>
           </div>
         </div>
