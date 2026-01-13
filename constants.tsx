@@ -9,8 +9,7 @@ import {
   Users,
   Search,
   Settings,
-  Database,
-  FileText
+  ArrowLeftCircle
 } from 'lucide-react';
 import { MaterialCategory } from './types';
 
@@ -25,21 +24,21 @@ export const PREDEFINED_MATERIALS = [
   { name: 'Cinza Absoluto', category: MaterialCategory.QUARTZO },
   { name: 'Mármore Carrara', category: MaterialCategory.MARMORE },
   { name: 'Mármore Travertino', category: MaterialCategory.MARMORE },
-  { name: 'Calacatta Gold', category: MaterialCategory.DEKTON },
-  { name: 'Estatuário', category: MaterialCategory.MARMORE },
-  { name: 'Preto Absoluto', category: MaterialCategory.GRANITO },
-  { name: 'Branco Itaúnas', category: MaterialCategory.GRANITO }
+  { name: 'Calacatta Gold', category: MaterialCategory.DEKTON }
 ];
 
 export const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['ADMIN', 'OPERATOR'] },
-  { id: 'inventory', label: 'Estoque', icon: <Package size={20} />, roles: ['ADMIN', 'OPERATOR'] },
-  { id: 'projects', label: 'Projetos (Busca)', icon: <Search size={20} />, roles: ['ADMIN', 'OPERATOR'] },
-  { id: 'add', label: 'Gerenciar Material', icon: <PlusCircle size={20} />, roles: ['ADMIN'] },
-  { id: 'scanner', label: 'Scanner', icon: <QrCode size={20} />, roles: ['ADMIN', 'OPERATOR'] },
-  { id: 'team', label: 'Equipe', icon: <Users size={20} />, roles: ['ADMIN'] },
-  { id: 'history', label: 'Movimentações', icon: <History size={20} />, roles: ['ADMIN', 'OPERATOR'] },
-  { id: 'platform', label: 'Plataforma', icon: <Settings size={20} />, roles: ['SUPER_ADMIN'] },
+  // Itens visíveis apenas quando dentro de um cliente
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'inventory', label: 'Estoque', icon: <Package size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'projects', label: 'Projetos (Busca)', icon: <Search size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'add', label: 'Gerenciar Material', icon: <PlusCircle size={20} />, roles: ['ADMIN'], clientOnly: true },
+  { id: 'scanner', label: 'Scanner', icon: <QrCode size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'team', label: 'Equipe', icon: <Users size={20} />, roles: ['ADMIN'], clientOnly: true },
+  { id: 'history', label: 'Movimentações', icon: <History size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  
+  // Itens Globais/Plataforma
+  { id: 'platform', label: 'Plataforma', icon: <Settings size={20} />, roles: ['SUPER_ADMIN'], platformOnly: true },
 ];
 
 export const STATUS_COLORS: Record<string, string> = {
