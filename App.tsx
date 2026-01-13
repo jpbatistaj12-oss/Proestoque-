@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NAV_ITEMS, APP_NAME } from './constants';
-import { InventoryItem, User, UserRole } from './types';
+import { InventoryItem, User, UserRole, StockStatus } from './types';
 import { getInventory, getCurrentUser, logout, getAllCompanies } from './services/storageService';
-import { LogOut, LayoutGrid, ArrowLeftCircle, ShieldCheck } from 'lucide-react';
+import { LogOut, LayoutGrid, ArrowLeftCircle, ShieldCheck, Bell, AlertTriangle, Package, ChevronRight, X } from 'lucide-react';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -23,6 +23,8 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('inventory');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [inventoryFilterMode, setInventoryFilterMode] = useState<string>('');
   
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
 
@@ -38,12 +40,22 @@ const App: React.FC = () => {
   }, [impersonatedCompanyId]);
 
   const refreshInventory = (companyId: string) => {
-    setInventory(getInventory(companyId));
+    const data = getInventory(companyId);
+    setInventory(data);
   };
 
   const handleSelectItem = (id: string) => {
     setSelectedItemId(id);
     setActiveTab('detail');
+    setShowNotifications(false);
+  };
+
+  const handleDashboardFilter = (filter: string) => {
+    if (filter === 'zerado' || filter === 'disponivel' || filter === 'sobra') {
+      setInventoryFilterMode(filter);
+      setActiveTab('inventory');
+      setSelectedItemId(null);
+    }
   };
 
   const handleLogout = () => {
@@ -61,6 +73,11 @@ const App: React.FC = () => {
     setImpersonatedCompanyId(null);
     setActiveTab('platform');
   };
+
+  // Lógica de Notificações: Itens com estoque 0
+  const zeroStockItems = useMemo(() => {
+    return inventory.filter(item => item.quantity <= 0);
+  }, [inventory]);
 
   if (!user) {
     return (
@@ -92,9 +109,18 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard inventory={inventory} onSelectItem={handleSelectItem} />;
+        return <Dashboard inventory={inventory} onSelectItem={handleSelectItem} onFilterRequest={handleDashboardFilter} />;
       case 'inventory':
-        return <InventoryList inventory={inventory} onSelectItem={handleSelectItem} onNewItem={() => setActiveTab('add')} onScan={() => setActiveTab('scanner')} />;
+        return (
+          <InventoryList 
+            inventory={inventory} 
+            onSelectItem={handleSelectItem} 
+            onNewItem={() => setActiveTab('add')} 
+            onScan={() => setActiveTab('scanner')} 
+            initialFilter={inventoryFilterMode}
+            onFilterCleared={() => setInventoryFilterMode('')}
+          />
+        );
       case 'projects':
         return <ProjectSearch inventory={inventory} onSelectItem={handleSelectItem} />;
       case 'add':
@@ -120,12 +146,12 @@ const App: React.FC = () => {
   const pageTitles: Record<string, { title: string, subtitle: string }> = {
     dashboard: { title: 'Dashboard', subtitle: 'Visão geral do negócio' },
     inventory: { title: 'Estoque', subtitle: 'Gerencie materiais disponíveis' },
-    projects: { title: 'Projetos', subtitle: 'Busca por cliente ou obra' },
+    projects: { title: 'Busca de Clientes', subtitle: 'Rastreabilidade de obras e cortes' },
     add: { title: 'Cadastro', subtitle: 'Novas chapas no estoque' },
     scanner: { title: 'Scanner QR', subtitle: 'Identificação imediata' },
     team: { title: 'Equipe', subtitle: 'Permissões e acessos' },
     history: { title: 'Histórico', subtitle: 'Rastreabilidade completa' },
-    platform: { title: 'Gestão Global', subtitle: 'Clientes e Assinaturas' },
+    platform: { title: 'Command Center', subtitle: 'Gestão Financeira e de Rede' },
     detail: { title: 'Material', subtitle: 'Detalhes técnicos' }
   };
 
@@ -148,7 +174,7 @@ const App: React.FC = () => {
           {filteredNav.map((item) => (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); setSelectedItemId(null); }}
+              onClick={() => { setActiveTab(item.id); setSelectedItemId(null); setInventoryFilterMode(''); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                 activeTab === item.id ? 'bg-[#334155] text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
               }`}
@@ -177,7 +203,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header className="hidden md:flex h-20 items-center justify-between px-8 bg-white border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-6">
             <div>
@@ -192,13 +218,61 @@ const App: React.FC = () => {
             )}
           </div>
           
-          <div className="flex items-center gap-3">
-              <div className="text-right">
-                 <p className="text-xs font-black text-slate-900">{user.name}</p>
-                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{user.role}</p>
+          <div className="flex items-center gap-6">
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className={`p-3 rounded-2xl transition-all relative group ${showNotifications ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-400 hover:text-slate-900'}`}
+                >
+                  <Bell size={22} className={zeroStockItems.length > 0 ? 'animate-swing' : ''} />
+                  {zeroStockItems.length > 0 && (
+                    <span className="absolute top-2 right-2 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+                      {zeroStockItems.length}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-4 w-80 bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 z-[100] overflow-hidden animate-popIn">
+                     <div className="p-5 bg-slate-900 text-white flex justify-between items-center">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Notificações</h4>
+                        <button onClick={() => setShowNotifications(false)}><X size={16} /></button>
+                     </div>
+                     <div className="max-h-96 overflow-y-auto p-4 space-y-3">
+                        {zeroStockItems.length > 0 ? zeroStockItems.map(item => (
+                          <div 
+                            key={item.id} 
+                            onClick={() => handleSelectItem(item.id)}
+                            className="flex items-center gap-4 p-4 bg-red-50 hover:bg-red-100 border border-red-100 rounded-2xl cursor-pointer transition-all group"
+                          >
+                             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-sm shrink-0">
+                                <AlertTriangle size={24} />
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                <p className="text-xs font-black text-slate-900 uppercase truncate">{item.commercialName}</p>
+                                <p className="text-[9px] font-bold text-red-600 uppercase tracking-widest mt-0.5">ESTOQUE ZERADO</p>
+                             </div>
+                             <ChevronRight size={16} className="text-red-300 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        )) : (
+                          <div className="py-10 text-center space-y-3 opacity-40">
+                             <Package size={40} className="mx-auto text-slate-300" />
+                             <p className="text-[10px] font-black uppercase tracking-widest">Nenhum alerta crítico</p>
+                          </div>
+                        )}
+                     </div>
+                  </div>
+                )}
               </div>
-              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600">
-                {user.name.charAt(0)}
+
+              <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs font-black text-slate-900">{user.name}</p>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{user.role}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600">
+                    {user.name.charAt(0)}
+                  </div>
               </div>
           </div>
         </header>
@@ -216,7 +290,7 @@ const App: React.FC = () => {
           {filteredNav.slice(0, 5).map((item) => (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); setSelectedItemId(null); }}
+              onClick={() => { setActiveTab(item.id); setSelectedItemId(null); setInventoryFilterMode(''); }}
               className={`flex flex-col items-center gap-1 p-2 rounded-xl flex-1 ${activeTab === item.id ? 'text-blue-600 bg-blue-50' : 'text-slate-400'}`}
             >
               {item.icon}
@@ -226,6 +300,21 @@ const App: React.FC = () => {
         </nav>
       </div>
       <SupportBot />
+
+      <style>{`
+        @keyframes swing {
+          0% { transform: rotate(0); }
+          20% { transform: rotate(15deg); }
+          40% { transform: rotate(-10deg); }
+          60% { transform: rotate(5deg); }
+          80% { transform: rotate(-5deg); }
+          100% { transform: rotate(0); }
+        }
+        .animate-swing {
+          animation: swing 2s ease-in-out infinite;
+          transform-origin: top center;
+        }
+      `}</style>
     </div>
   );
 };

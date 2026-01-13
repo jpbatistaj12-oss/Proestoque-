@@ -1,9 +1,11 @@
 
 export enum StockStatus {
-  INTEIRA = 'Inteira',
+  DISPONIVEL = 'Disponível',
+  BAIXO_ESTOQUE = 'Baixo Estoque',
+  ESGOTADO = 'Esgotado',
   EM_USO = 'Em Uso',
   COM_SOBRA = 'Com Sobra',
-  FINALIZADA = 'Finalizada'
+  INTEIRA = 'Inteira'
 }
 
 export enum MaterialCategory {
@@ -16,9 +18,9 @@ export enum MaterialCategory {
 }
 
 export enum UserRole {
-  SUPER_ADMIN = 'SUPER_ADMIN', // Dono da plataforma
-  ADMIN = 'ADMIN',             // Dono da Marmoraria
-  OPERATOR = 'OPERATOR'       // Funcionário
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  ADMIN = 'ADMIN',
+  OPERATOR = 'OPERATOR'
 }
 
 export interface User {
@@ -41,12 +43,7 @@ export interface Company {
   adminId: string;
   status: CompanyStatus;
   createdAt: string;
-  monthlyFee: number; // Valor da assinatura mensal
-}
-
-export interface Point {
-  x: number;
-  y: number;
+  monthlyFee: number;
 }
 
 export interface CutHistoryRecord {
@@ -54,49 +51,36 @@ export interface CutHistoryRecord {
   date: string;
   project: string;
   clientName: string;
-  installationLocation?: string;
-  cutLocationOnSlab?: string; 
-  areaUsed: number;
-  leftoverWidth: number;
-  leftoverHeight: number;
-  leftoverPoints?: Point[];
-  piecePhoto?: string;    // Foto da peça que saiu para o cliente
-  leftoverPhoto?: string; // Foto de como ficou a sobra
+  type: 'SAIDA' | 'SOBRA' | 'ENTRADA';
+  quantityChange: number;
   observations?: string;
-  operatorId: string;
   operatorName: string;
+  areaUsed: number;
+  cutWidth?: number;
+  cutHeight?: number;
+  leftoverWidth?: number;
+  leftoverHeight?: number;
 }
 
 export interface InventoryItem {
-  id: string;
+  id: string; 
+  entryIndex: number; 
   companyId: string;
-  parentItemId?: string;
-  category: MaterialCategory;
+  category: string;
   commercialName: string;
   thickness: string;
-  originalWidth: number;
-  originalHeight: number;
-  currentWidth: number;
-  currentHeight: number;
+  width: number;
+  height: number;
+  availableArea: number; 
+  originalWidth?: number;
+  originalHeight?: number;
   location?: string;
-  shapePoints?: Point[];
-  totalArea: number;
-  availableArea: number;
+  quantity: number;
+  minQuantity: number;
   supplier: string;
   entryDate: string;
-  purchaseValue?: number;
-  observations?: string;
   photos: string[];
   status: StockStatus;
   history: CutHistoryRecord[];
-  lastOperatorId?: string;
-  lastOperatorName?: string;
-  lastUpdatedAt?: string;
-}
-
-export interface DashboardStats {
-  totalItems: number;
-  totalAreaInStock: number;
-  byCategory: Record<string, number>;
-  byStatus: Record<string, number>;
+  lastUpdatedAt: string;
 }

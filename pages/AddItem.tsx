@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MaterialCategory, InventoryItem, StockStatus, User } from '../types';
-import { saveItem } from '../services/storageService';
-import { Camera, Save, Image as ImageIcon, Trash2, UploadCloud, ChevronLeft, ChevronRight, Plus, X, RotateCcw, MonitorPlay, MapPin } from 'lucide-react';
+import { saveItem, getInventory } from '../services/storageService';
+import { PREDEFINED_MATERIALS } from '../constants';
+import { Camera, Save, Image as ImageIcon, Search, Database, ArrowRight, Package, Maximize2, QrCode, Edit3, X, Hash } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface AddItemProps {
   onComplete: () => void;
@@ -11,351 +13,318 @@ interface AddItemProps {
 }
 
 const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [generatedSerial, setGeneratedSerial] = useState('');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [nextIndex, setNextIndex] = useState(1);
   
   const [formData, setFormData] = useState({
-    category: MaterialCategory.GRANITO,
+    id: '', 
+    category: 'Granito',
     commercialName: '',
     thickness: '2cm',
     width: 0,
     height: 0,
     location: '',
+    quantity: 1,
+    minQuantity: 2,
     supplier: '',
-    purchaseValue: '',
-    observations: '',
   });
 
   const [photos, setPhotos] = useState<string[]>([]);
-  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [showFlash, setShowFlash] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const fileArray: File[] = Array.from(files);
-      fileArray.forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result) {
-            setPhotos(prev => [...prev, event.target!.result as string]);
-          }
-        };
-        reader.readAsDataURL(file);
+  useEffect(() => {
+    const currentInventory = getInventory(companyId);
+    setInventory(currentInventory);
+    
+    // Encontra o maior entryIndex para determinar o próximo
+    const lastIndex = currentInventory.reduce((max, item) => Math.max(max, item.entryIndex || 0), 0);
+    const newIndex = lastIndex + 1;
+    
+    setNextIndex(newIndex);
+    // O ID agora é apenas o número, formatado com 4 dígitos (ex: 0001)
+    setGeneratedSerial(newIndex.toString().padStart(4, '0'));
+  }, [companyId]);
+
+  const handleSelectPredefined = (mat: {name: string, category: string}) => {
+    const existing = inventory.find(i => i.commercialName === mat.name);
+    setIsCustomCategory(false);
+    
+    if (existing) {
+      setFormData({
+        id: existing.id,
+        category: existing.category,
+        commercialName: existing.commercialName,
+        thickness: existing.thickness,
+        width: existing.width,
+        height: existing.height,
+        location: existing.location || '',
+        quantity: 1, 
+        minQuantity: existing.minQuantity,
+        supplier: existing.supplier,
       });
-    }
-  };
-
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }, 
-        audio: false 
-      }).catch(() => {
-        return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setPhotos(existing.photos);
+      setGeneratedSerial(existing.id);
+    } else {
+      setFormData({
+        ...formData,
+        commercialName: mat.name,
+        category: mat.category,
+        id: nextIndex.toString().padStart(4, '0')
       });
-
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-      setIsCameraOpen(true);
-    } catch (err) {
-      console.error("Erro ao acessar a câmera:", err);
-      alert("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
+      setGeneratedSerial(nextIndex.toString().padStart(4, '0'));
+      setPhotos([]);
     }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-    setIsCameraOpen(false);
-  };
-
-  const takePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      
-      setShowFlash(true);
-      setTimeout(() => setShowFlash(false), 150);
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = canvas.toDataURL('image/jpeg', 0.85);
-        setPhotos(prev => [...prev, imageData]);
-        setActivePhotoIndex(photos.length);
-        if ('vibrate' in navigator) navigator.vibrate(50);
-      }
-    }
-  };
-
-  const removePhoto = (index: number) => {
-    setPhotos(prev => {
-      const newPhotos = prev.filter((_, i) => i !== index);
-      if (activePhotoIndex >= newPhotos.length) {
-        setActivePhotoIndex(Math.max(0, newPhotos.length - 1));
-      }
-      return newPhotos;
-    });
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.commercialName || !formData.width || !formData.height) {
-      alert('Por favor, preencha os campos obrigatórios (Nome e Medidas).');
+    if (!formData.commercialName || formData.quantity <= 0) {
+      alert('Nome e Quantidade são obrigatórios.');
       return;
     }
 
-    if (photos.length === 0) {
-      alert('Por favor, adicione pelo menos uma foto da chapa para registro visual.');
-      return;
+    const existingIndex = inventory.findIndex(i => i.commercialName === formData.commercialName);
+    let itemToSave: InventoryItem;
+
+    if (existingIndex >= 0) {
+      const existing = inventory[existingIndex];
+      itemToSave = {
+        ...existing,
+        quantity: existing.quantity + formData.quantity,
+        width: formData.width || existing.width,
+        height: formData.height || existing.height,
+        category: formData.category,
+        photos: photos.length > 0 ? photos : existing.photos,
+        lastUpdatedAt: new Date().toISOString(),
+        status: (existing.quantity + formData.quantity) > 0 ? StockStatus.DISPONIVEL : StockStatus.ESGOTADO,
+        history: [{
+          id: `H-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          project: 'Reposição manual',
+          clientName: 'Estoque',
+          type: 'ENTRADA',
+          quantityChange: formData.quantity,
+          operatorName: user.name,
+          areaUsed: 0
+        }, ...existing.history]
+      };
+    } else {
+      itemToSave = {
+        id: generatedSerial, // Agora é puramente numérico (ex: 0001)
+        entryIndex: nextIndex,
+        companyId: companyId,
+        category: formData.category,
+        commercialName: formData.commercialName,
+        thickness: formData.thickness,
+        width: formData.width,
+        height: formData.height,
+        location: formData.location,
+        quantity: formData.quantity,
+        minQuantity: formData.minQuantity,
+        supplier: formData.supplier,
+        entryDate: new Date().toISOString(),
+        photos: photos,
+        status: StockStatus.DISPONIVEL,
+        availableArea: (formData.width * formData.height) / 10000,
+        history: [{
+          id: `H-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          project: 'Entrada Inicial',
+          clientName: 'Estoque',
+          type: 'ENTRADA',
+          quantityChange: formData.quantity,
+          operatorName: user.name,
+          areaUsed: 0
+        }],
+        lastUpdatedAt: new Date().toISOString()
+      };
     }
 
-    const area = (formData.width * formData.height) / 10000;
-    const newItem: InventoryItem = {
-      id: `CHP-${Math.floor(1000 + Math.random() * 9000)}`,
-      companyId: companyId,
-      category: formData.category,
-      commercialName: formData.commercialName,
-      thickness: formData.thickness,
-      originalWidth: formData.width,
-      originalHeight: formData.height,
-      currentWidth: formData.width,
-      currentHeight: formData.height,
-      location: formData.location,
-      totalArea: area,
-      availableArea: area,
-      supplier: formData.supplier,
-      entryDate: new Date().toISOString().split('T')[0],
-      purchaseValue: Number(formData.purchaseValue) || undefined,
-      observations: formData.observations,
-      photos: photos,
-      status: StockStatus.INTEIRA,
-      history: [],
-      lastOperatorId: user.id,
-      lastOperatorName: user.name,
-      lastUpdatedAt: new Date().toISOString()
-    };
-
-    saveItem(newItem);
+    saveItem(itemToSave);
     onComplete();
   };
 
   return (
-    <div className="max-w-5xl mx-auto pb-24 animate-fadeIn px-2 sm:px-0">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl">
-          <UploadCloud size={24} />
+    <div className="max-w-6xl mx-auto pb-24 animate-fadeIn">
+      <div className="flex items-center justify-between mb-10">
+        <div className="flex items-center gap-4">
+          <div className="bg-[#1e293b] text-white p-4 rounded-2xl shadow-2xl">
+            <Database size={28} />
+          </div>
+          <div>
+            <h2 className="text-4xl font-black text-[#1e293b] tracking-tighter">Gerenciar Estoque</h2>
+            <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">Cadastre novos tipos ou adicione quantidade</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Novo Material</h2>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">Entrada de estoque e registro fotográfico</p>
+        <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+           <Hash className="text-blue-500" size={20} />
+           <div className="text-right">
+             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Próximo Cadastro</p>
+             <p className="text-xl font-black text-slate-900 tracking-tighter">#{nextIndex}</p>
+           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white p-4 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
-            <div className={`aspect-square rounded-[2rem] overflow-hidden relative group bg-slate-50 border-2 border-dashed ${photos.length > 0 ? 'border-transparent' : 'border-slate-200'}`}>
-              {photos.length > 0 ? (
-                <>
-                  <img src={photos[activePhotoIndex]} className="w-full h-full object-cover" alt="Visualização" />
-                  <div className="absolute top-4 right-4 flex gap-2">
-                    <button type="button" onClick={() => removePhoto(activePhotoIndex)} className="bg-white/90 backdrop-blur-md text-red-500 p-3 rounded-2xl shadow-xl hover:bg-red-500 hover:text-white transition-all border border-red-100">
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                  {photos.length > 1 && (
-                    <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none">
-                      <button type="button" onClick={() => setActivePhotoIndex(prev => (prev > 0 ? prev - 1 : photos.length - 1))} className="pointer-events-auto bg-white/80 backdrop-blur-sm p-3 rounded-2xl text-slate-900 shadow-lg hover:scale-110 transition-transform border border-white/50">
-                        <ChevronLeft size={24} />
-                      </button>
-                      <button type="button" onClick={() => setActivePhotoIndex(prev => (prev < photos.length - 1 ? prev + 1 : 0))} className="pointer-events-auto bg-white/80 backdrop-blur-sm p-3 rounded-2xl text-slate-900 shadow-lg hover:scale-110 transition-transform border border-white/50">
-                        <ChevronRight size={24} />
-                      </button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="lg:col-span-4">
+          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
+             <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-2">Catálogo de Materiais</h4>
+             <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar material..." 
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/5 transition-all"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+             </div>
+             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
+                {PREDEFINED_MATERIALS.filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((mat, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => handleSelectPredefined(mat)}
+                    className={`w-full p-5 rounded-3xl text-left transition-all group flex justify-between items-center ${formData.commercialName === mat.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}
+                  >
+                    <div>
+                      <p className={`text-sm font-black uppercase tracking-tight leading-none ${formData.commercialName === mat.name ? 'text-white' : 'text-slate-900'}`}>{mat.name}</p>
+                      <p className={`text-[9px] font-bold uppercase mt-1.5 ${formData.commercialName === mat.name ? 'text-blue-100' : 'text-slate-400'}`}>{mat.category}</p>
                     </div>
-                  )}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] text-white font-black uppercase tracking-widest border border-white/20">
-                    {activePhotoIndex + 1} / {photos.length} FOTOS
-                  </div>
-                </>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center p-10 text-center">
-                  <div className="w-24 h-24 bg-blue-50 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-inner">
-                    <Camera size={48} className="text-blue-400" />
-                  </div>
-                  <h4 className="text-slate-900 font-black text-xl tracking-tight">Registro Visual Obrigatório</h4>
-                  <p className="text-slate-400 text-xs font-bold mt-2 leading-relaxed">Adicione fotos reais da chapa para controle de veios e tonalidade.</p>
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button type="button" onClick={startCamera} className="flex flex-col items-center justify-center gap-2 bg-slate-900 text-white p-6 rounded-[2rem] hover:bg-blue-600 transition-all shadow-xl group active:scale-95">
-                <div className="bg-white/10 p-3 rounded-2xl group-hover:scale-110 transition-transform"><Camera size={28} /></div>
-                <span className="font-black text-[10px] uppercase tracking-widest">Usar Câmera</span>
-              </button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center justify-center gap-2 bg-slate-50 text-slate-600 p-6 rounded-[2rem] border border-slate-200 hover:bg-white hover:border-blue-400 hover:text-blue-500 transition-all shadow-sm group active:scale-95">
-                <div className="bg-slate-200 p-3 rounded-2xl group-hover:scale-110 transition-transform"><ImageIcon size={28} /></div>
-                <span className="font-black text-[10px] uppercase tracking-widest">Galeria</span>
-              </button>
-            </div>
-            {photos.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide px-1 mt-2">
-                {photos.map((photo, idx) => (
-                  <div key={idx} onClick={() => setActivePhotoIndex(idx)} className={`shrink-0 w-20 h-20 rounded-2xl overflow-hidden cursor-pointer border-4 transition-all relative ${activePhotoIndex === idx ? 'border-blue-500 scale-105 shadow-xl' : 'border-white shadow-sm grayscale-[0.3]'}`}>
-                    <img src={photo} className="w-full h-full object-cover" alt="" />
-                  </div>
+                    <ArrowRight size={16} className={formData.commercialName === mat.name ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} />
+                  </button>
                 ))}
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="shrink-0 w-20 h-20 rounded-2xl border-4 border-dashed border-slate-200 flex items-center justify-center text-slate-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all bg-slate-50">
-                  <Plus size={32} />
-                </button>
-              </div>
-            )}
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" multiple />
+             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white p-6 sm:p-10 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-8">
+        <div className="lg:col-span-8">
+          <form onSubmit={handleSave} className="bg-white p-10 sm:p-14 rounded-[3.5rem] shadow-sm border border-slate-100 space-y-10 relative overflow-hidden">
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Classificação</label>
-                <select 
-                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 font-bold text-slate-900 transition-all outline-none"
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value as MaterialCategory})}
-                >
-                  {Object.values(MaterialCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Material</label>
+                <input type="text" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" value={formData.commercialName} onChange={e => setFormData({...formData, commercialName: e.target.value})} required placeholder="Selecione ou digite..." />
               </div>
+              
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Nome do Material</label>
-                <input 
-                  type="text" 
-                  placeholder="Ex: Granito Branco Siena"
-                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 font-bold transition-all outline-none"
-                  value={formData.commercialName}
-                  onChange={(e) => setFormData({...formData, commercialName: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Espessura</label>
-                <input 
-                  type="text" 
-                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
-                  value={formData.thickness}
-                  onChange={(e) => setFormData({...formData, thickness: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Largura (cm)</label>
-                <input 
-                  type="number" 
-                  className="w-full p-5 bg-white border-2 border-slate-100 rounded-3xl font-black text-blue-600 text-xl focus:border-blue-600 transition-all outline-none shadow-inner"
-                  value={formData.width || ''}
-                  onChange={(e) => setFormData({...formData, width: Number(e.target.value)})}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Altura (cm)</label>
-                <input 
-                  type="number" 
-                  className="w-full p-5 bg-white border-2 border-slate-100 rounded-3xl font-black text-blue-600 text-xl focus:border-blue-600 transition-all outline-none shadow-inner"
-                  value={formData.height || ''}
-                  onChange={(e) => setFormData({...formData, height: Number(e.target.value)})}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Localização Física</label>
-                <div className="relative">
-                  <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria</label>
+                  {!isCustomCategory ? (
+                    <button 
+                      type="button" 
+                      onClick={() => setIsCustomCategory(true)}
+                      className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1 hover:text-blue-800"
+                    >
+                      <Edit3 size={10} /> + Outra
+                    </button>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={() => setIsCustomCategory(false)}
+                      className="text-[9px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1 hover:text-red-700"
+                    >
+                      <X size={10} /> Cancelar
+                    </button>
+                  )}
+                </div>
+                
+                {!isCustomCategory ? (
+                  <select 
+                    className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-slate-900 outline-none appearance-none cursor-pointer" 
+                    value={formData.category} 
+                    onChange={e => setFormData({...formData, category: e.target.value})}
+                  >
+                    {Object.values(MaterialCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                ) : (
                   <input 
                     type="text" 
-                    className="w-full pl-12 p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
-                    placeholder="Ex: Corredor A, Palito 3"
-                    value={formData.location}
-                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    className="w-full p-5 bg-blue-50 border-2 border-blue-100 rounded-2xl font-black text-slate-900 outline-none focus:bg-white animate-fadeIn" 
+                    placeholder="Digite a nova categoria..." 
+                    value={formData.category} 
+                    onChange={e => setFormData({...formData, category: e.target.value})}
+                    autoFocus
                   />
-                </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="space-y-2 col-span-2">
+                 <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest ml-1">Quantidade a Adicionar</label>
+                 <div className="relative">
+                    <Package className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400" size={24} />
+                    <input type="number" className="w-full pl-14 p-5 bg-blue-50/50 border-2 border-blue-100 rounded-3xl font-black text-2xl text-blue-700 outline-none" value={formData.quantity} onChange={e => setFormData({...formData, quantity: Number(e.target.value)})} required min="1" />
+                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Fornecedor</label>
-                <input 
-                  type="text" 
-                  className="w-full p-5 bg-slate-50 border border-slate-100 rounded-3xl font-bold outline-none"
-                  value={formData.supplier}
-                  onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                />
+                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Espessura</label>
+                 <input type="text" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-center" value={formData.thickness} onChange={e => setFormData({...formData, thickness: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Estoque Mín.</label>
+                 <input type="number" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-center" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: Number(e.target.value)})} />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Observações Técnicas</label>
-              <textarea 
-                className="w-full p-6 bg-slate-50 border border-slate-100 rounded-[2rem] font-medium h-32 transition-all focus:ring-4 focus:ring-blue-600/5 focus:border-blue-600 outline-none resize-none"
-                placeholder="Ex: Material com veios horizontais, faces polidas..."
-                value={formData.observations}
-                onChange={(e) => setFormData({...formData, observations: e.target.value})}
-              ></textarea>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-             <button type="submit" className="flex-1 bg-slate-900 text-white py-6 rounded-[2.5rem] font-black flex items-center justify-center gap-4 hover:bg-emerald-600 shadow-2xl active:scale-95 transition-all text-xl group relative overflow-hidden">
-              <Save size={28} />
-              CONFIRMAR ENTRADA
-            </button>
-          </div>
-        </div>
-      </form>
-
-      {isCameraOpen && (
-        <div className="fixed inset-0 bg-slate-950 z-[200] flex flex-col items-center animate-fadeIn overflow-hidden">
-          <div className="w-full p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent absolute top-0 z-10">
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg"><Camera size={20} className="text-white" /></div>
-               <div>
-                 <p className="text-white font-black text-xs uppercase tracking-widest">Câmera de Produção</p>
-                 <p className="text-blue-400 text-[9px] font-black uppercase tracking-widest">Modo Alta Definição</p>
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-8 border-t border-slate-50 pt-10">
+               <div className="space-y-2">
+                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Largura (cm)</label>
+                 <div className="relative">
+                    <Maximize2 className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+                    <input type="number" placeholder="Ex: 300" className="w-full pl-14 p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-slate-900 outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all" value={formData.width || ''} onChange={e => setFormData({...formData, width: Number(e.target.value)})} />
+                 </div>
                </div>
-             </div>
-             <button onClick={stopCamera} className="bg-white/10 backdrop-blur-xl text-white p-3 rounded-2xl hover:bg-red-500 transition-all border border-white/10"><X size={24} /></button>
-          </div>
-          <div className="relative w-full h-full flex items-center justify-center">
-            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover sm:rounded-[3rem] sm:w-[90%] sm:h-[80%] sm:border-8 sm:border-white/10" />
-            {showFlash && <div className="absolute inset-0 bg-white z-50 animate-pulse"></div>}
-          </div>
-          <div className="w-full p-10 flex items-center justify-center gap-10 bg-gradient-to-t from-black/80 to-transparent absolute bottom-0">
-            <button onClick={stopCamera} className="w-16 h-16 bg-white/10 backdrop-blur-2xl text-white rounded-3xl flex items-center justify-center hover:bg-red-500 transition-all border border-white/10 active:scale-90"><RotateCcw size={28} /></button>
-            <button onClick={takePhoto} className="w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.3)] active:scale-90 transition-all border-8 border-slate-900 ring-4 ring-white"><div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center"></div></button>
-            <div className="relative group">
-              <div className="w-16 h-16 bg-white/10 backdrop-blur-2xl text-white rounded-3xl flex items-center justify-center border border-white/10 overflow-hidden">
-                {photos.length > 0 ? <img src={photos[photos.length - 1]} className="w-full h-full object-cover" alt="" /> : <MonitorPlay size={24} className="opacity-40" />}
-              </div>
+               <div className="space-y-2">
+                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Altura (cm)</label>
+                 <div className="relative rotate-90 md:rotate-0">
+                    <Maximize2 className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+                    <input type="number" placeholder="Ex: 180" className="w-full pl-14 p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-slate-900 outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all" value={formData.height || ''} onChange={e => setFormData({...formData, height: Number(e.target.value)})} />
+                 </div>
+               </div>
             </div>
-          </div>
+
+            <div className="flex flex-col md:flex-row gap-10 items-end border-t border-slate-50 pt-10">
+               <div className="space-y-4 flex-1">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Foto do Material</label>
+                  <div className="flex gap-6 items-center">
+                     <div className="w-32 h-32 rounded-[2rem] bg-slate-50 border-4 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shadow-inner">
+                       {photos.length > 0 ? <img src={photos[0]} className="w-full h-full object-cover" /> : <ImageIcon size={40} className="text-slate-300" />}
+                     </div>
+                     <button type="button" onClick={() => fileInputRef.current?.click()} className="px-8 py-4 bg-[#1e293b] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-slate-800 transition-all shadow-xl">
+                       <Camera size={20} /> {photos.length > 0 ? 'Trocar Foto' : 'Adicionar Foto'}
+                     </button>
+                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={e => {
+                       const file = e.target.files?.[0];
+                       if (file) {
+                         const reader = new FileReader();
+                         reader.onload = (ev) => setPhotos([ev.target?.result as string]);
+                         reader.readAsDataURL(file);
+                       }
+                     }} />
+                  </div>
+               </div>
+
+               <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 flex items-center gap-6 shadow-inner">
+                  <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                    <QRCodeSVG value={generatedSerial} size={80} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Nº Série Numérico</p>
+                    <p className="text-xl font-black text-slate-900 tracking-tighter">{generatedSerial}</p>
+                  </div>
+               </div>
+            </div>
+
+            <button type="submit" className="w-full bg-[#3b82f6] text-white py-8 rounded-[2.5rem] font-black uppercase shadow-[0_20px_40px_rgba(59,130,246,0.3)] hover:bg-blue-600 transition-all active:scale-95 text-xl flex items-center justify-center gap-4">
+              <Save size={28} /> CONFIRMAR ENTRADA
+            </button>
+          </form>
         </div>
-      )}
-      <canvas ref={canvasRef} className="hidden" />
+      </div>
     </div>
   );
 };

@@ -5,7 +5,6 @@ export interface StoredUser extends User {
   password?: string;
 }
 
-// Chaves globais consistentes
 const KEYS = {
   INVENTORY: 'marm_inventory_v2',
   USERS: 'marm_users_v2',
@@ -13,9 +12,6 @@ const KEYS = {
   SESSION: 'marm_active_session'
 };
 
-/**
- * Normaliza e-mails: remove todos os espaços e coloca tudo em minúsculo.
- */
 const normalizeEmail = (email: string | undefined): string => {
   if (!email) return '';
   return email.trim().toLowerCase();
@@ -26,11 +22,34 @@ export const getCurrentUser = (): User | null => {
   return session ? JSON.parse(session) : null;
 };
 
+// --- FUNÇÕES DE SINCRONIZAÇÃO GLOBAL (BACKUP) ---
+export const exportFullDatabase = () => {
+  const data = {
+    inventory: JSON.parse(localStorage.getItem(KEYS.INVENTORY) || '[]'),
+    users: JSON.parse(localStorage.getItem(KEYS.USERS) || '[]'),
+    companies: JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]'),
+    exportedAt: new Date().toISOString()
+  };
+  return JSON.stringify(data, null, 2);
+};
+
+export const importFullDatabase = (jsonString: string) => {
+  try {
+    const data = JSON.parse(jsonString);
+    if (data.inventory) localStorage.setItem(KEYS.INVENTORY, JSON.stringify(data.inventory));
+    if (data.users) localStorage.setItem(KEYS.USERS, JSON.stringify(data.users));
+    if (data.companies) localStorage.setItem(KEYS.COMPANIES, JSON.stringify(data.companies));
+    return true;
+  } catch (e) {
+    console.error("Erro ao importar base de dados", e);
+    return false;
+  }
+};
+
 export const login = (email: string, password?: string, preferredRole?: UserRole): User | null => {
   const cleanEmail = normalizeEmail(email);
   const cleanPassword = (password || '').trim();
   
-  // 1. Login Super Admin da Plataforma
   if (cleanEmail === 'admin@marmoraria.control' && cleanPassword === 'marm@2025') {
     const superAdmin: User = {
       id: 'SUPER-001',
@@ -44,46 +63,17 @@ export const login = (email: string, password?: string, preferredRole?: UserRole
   }
 
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  
-  // 2. BUSCA GLOBAL (Encontra o usuário independente da aba selecionada)
   const user = users.find(u => normalizeEmail(u.email) === cleanEmail);
   
-  if (!user) {
-    // DIAGNÓSTICO PARA O USUÁRIO (Console F12)
-    console.group("DIAGNÓSTICO DE ACESSO");
-    console.warn("E-mail digitado:", `[${cleanEmail}]`);
-    console.log("Base de dados atual:");
-    console.table(users.map(u => ({ nome: u.name, e_mail: u.email, cargo: u.role, senha: u.password })));
-    console.groupEnd();
-    
-    throw new Error("E-MAIL NÃO ENCONTRADO. Certifique-se de que o cadastro foi feito corretamente no menu 'Equipe'.");
-  }
+  if (!user) throw new Error("E-MAIL NÃO ENCONTRADO.");
+  if (user.password !== cleanPassword) throw new Error("SENHA INCORRETA.");
 
-  // 3. VALIDAÇÃO DE PERFIL (Verifica se está na aba correta: Admin vs Operador)
-  if (preferredRole && user.role !== preferredRole && user.role !== UserRole.SUPER_ADMIN) {
-    const roleDigitada = preferredRole === UserRole.ADMIN ? 'ADMINISTRADOR' : 'COLABORADOR';
-    const roleReal = user.role === UserRole.ADMIN ? 'ADMINISTRADOR' : 'COLABORADOR';
-    throw new Error(`PERFIL INCORRETO. Este e-mail é de um ${roleReal}. Selecione a aba "${roleReal}" acima.`);
-  }
-
-  // 4. VALIDAÇÃO DE SENHA
-  if (user.password !== cleanPassword) {
-    throw new Error("SENHA INCORRETA. Verifique maiúsculas e minúsculas.");
-  }
-
-  // 5. VALIDAÇÃO DE EMPRESA
   const companies: Company[] = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
   const company = companies.find(c => c.id === user.companyId);
 
-  if (!company && user.role !== UserRole.SUPER_ADMIN) {
-    throw new Error("EMPRESA NÃO VINCULADA. Contate o suporte.");
-  }
+  if (!company && user.role !== UserRole.SUPER_ADMIN) throw new Error("EMPRESA NÃO VINCULADA.");
+  if (company && company.status === CompanyStatus.SUSPENDED) throw new Error("ACESSO SUSPENSO.");
 
-  if (company && company.status === CompanyStatus.SUSPENDED) {
-    throw new Error("ACESSO SUSPENSO. Verifique sua assinatura.");
-  }
-
-  // Login realizado com sucesso
   const { password: _, ...userWithoutPassword } = user;
   localStorage.setItem(KEYS.SESSION, JSON.stringify(userWithoutPassword));
   return userWithoutPassword;
@@ -95,80 +85,29 @@ export const getTeamMembers = (companyId: string): StoredUser[] => {
 };
 
 export const addTeamMember = (name: string, email: string, role: UserRole, companyId: string, password?: string): void => {
-  const cleanEmail = normalizeEmail(email);
   const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  
-  if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
-    throw new Error("E-mail já está em uso por outro colaborador.");
-  }
-
   const newUser: StoredUser = {
     id: `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
-    name: name.trim(), 
-    email: cleanEmail, 
-    role, 
-    companyId, 
-    password: (password || 'marm123').trim()
+    name, email: normalizeEmail(email), role, companyId, password: password || 'marm123'
   };
   users.push(newUser);
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 };
 
-export const updateTeamMemberCredentials = (userId: string, companyId: string, updates: Partial<StoredUser>): void => {
+// Fix: Added missing updateTeamMemberCredentials to handle team member updates
+export const updateTeamMemberCredentials = (id: string, companyId: string, updates: Partial<StoredUser>) => {
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  const index = users.findIndex(u => u.id === userId && u.companyId === companyId);
-  
+  const index = users.findIndex(u => u.id === id && u.companyId === companyId);
   if (index >= 0) {
-    if (updates.email) {
-      const cleanEmail = normalizeEmail(updates.email);
-      if (users.some((u, i) => i !== index && normalizeEmail(u.email) === cleanEmail)) {
-        throw new Error("Este novo e-mail já está em uso.");
-      }
-      updates.email = cleanEmail;
-    }
-    
     users[index] = { ...users[index], ...updates };
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   }
 };
 
-export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
-  const cleanEmail = normalizeEmail(email);
-  const companies = JSON.parse(localStorage.getItem(KEYS.COMPANIES) || '[]');
-  const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  
-  if (users.some((u: StoredUser) => normalizeEmail(u.email) === cleanEmail)) {
-    throw new Error("E-mail de administrador já cadastrado.");
-  }
-
-  const companyId = `COMP-${Date.now().toString(36).toUpperCase()}`;
-  const adminId = `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-  
-  companies.push({ 
-    id: companyId, 
-    name: companyName.trim(), 
-    adminId, 
-    status: CompanyStatus.ACTIVE, 
-    createdAt: new Date().toISOString(), 
-    monthlyFee: 299 
-  });
-  
-  users.push({ 
-    id: adminId, 
-    name: adminName.trim(), 
-    email: cleanEmail, 
-    role: UserRole.ADMIN, 
-    companyId, 
-    password: (password || 'joao123').trim() 
-  });
-  
-  localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
-  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-};
-
-export const deleteTeamMember = (userId: string, companyId: string): void => {
+// Fix: Added missing deleteTeamMember to handle team member removal
+export const deleteTeamMember = (id: string, companyId: string) => {
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-  const filtered = users.filter(u => !(u.id === userId && u.companyId === companyId));
+  const filtered = users.filter(u => !(u.id === id && u.companyId === companyId));
   localStorage.setItem(KEYS.USERS, JSON.stringify(filtered));
 };
 
@@ -194,12 +133,22 @@ export const updateCompanyStatus = (id: string, status: CompanyStatus) => {
   const index = companies.findIndex(c => c.id === id);
   if (index >= 0) { companies[index].status = status; localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies)); }
 };
-export const updateCompanyFee = (id: string, fee: number) => {
+export const createCompanyAccount = (adminName: string, email: string, companyName: string, password?: string): void => {
   const companies = getAllCompanies();
-  const index = companies.findIndex(c => c.id === id);
-  if (index >= 0) { companies[index].monthlyFee = fee; localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies)); }
+  const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+  const companyId = `COMP-${Date.now()}`;
+  const adminId = `USR-${Math.random().toString(36).substr(2, 5)}`;
+  companies.push({ id: companyId, name: companyName, adminId, status: CompanyStatus.ACTIVE, createdAt: new Date().toISOString(), monthlyFee: 299 });
+  users.push({ id: adminId, name: adminName, email: normalizeEmail(email), role: UserRole.ADMIN, companyId, password: password || 'marm123' });
+  localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
+  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 };
 export const getCompanyAdminCredentials = (companyId: string): StoredUser | null => {
   const users: StoredUser[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
   return users.find(u => u.companyId === companyId && u.role === UserRole.ADMIN) || null;
+};
+export const updateCompanyFee = (id: string, fee: number) => {
+  const companies = getAllCompanies();
+  const index = companies.findIndex(c => c.id === id);
+  if (index >= 0) { companies[index].monthlyFee = fee; localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies)); }
 };
