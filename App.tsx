@@ -5,7 +5,7 @@ import { InventoryItem, User, UserRole } from './types';
 import { getInventory, getCurrentUser, logout, getAllCompanies } from './services/storageService';
 import { LogOut, LayoutGrid, ArrowLeftCircle, ShieldCheck, Bell, AlertTriangle, Package, ChevronRight, X } from 'lucide-react';
 
-// Pages - Garantindo caminhos absolutos relativos à src/
+// Pages - Usando caminhos relativos consistentes
 import Dashboard from './pages/Dashboard';
 import InventoryList from './pages/InventoryList';
 import AddItem from './pages/AddItem';
@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [inventoryFilterMode, setInventoryFilterMode] = useState<string>('');
+  const [isAppReady, setIsAppReady] = useState(false);
   
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
 
@@ -34,18 +35,27 @@ const App: React.FC = () => {
       if (sessionUser) {
         setUser(sessionUser);
         refreshInventory(impersonatedCompanyId || sessionUser.companyId);
+        
+        // Se for Super Admin sem empresa selecionada, vai para o painel de plataforma
         if (sessionUser.role === UserRole.SUPER_ADMIN && !impersonatedCompanyId) {
           setActiveTab('platform');
         }
       }
+      setIsAppReady(true);
     } catch (e) {
-      console.error("Erro na sessão:", e);
+      console.error("Erro crítico de inicialização:", e);
+      setIsAppReady(true);
     }
   }, [impersonatedCompanyId]);
 
   const refreshInventory = (companyId: string) => {
-    const data = getInventory(companyId);
-    setInventory(data || []);
+    try {
+      const data = getInventory(companyId);
+      setInventory(data || []);
+    } catch (e) {
+      console.error("Falha ao carregar estoque:", e);
+      setInventory([]);
+    }
   };
 
   const handleSelectItem = (id: string) => {
@@ -64,6 +74,7 @@ const App: React.FC = () => {
     logout();
     setUser(null);
     setImpersonatedCompanyId(null);
+    setActiveTab('dashboard');
   };
 
   const currentCompanyId = impersonatedCompanyId || user?.companyId || '';
@@ -75,7 +86,10 @@ const App: React.FC = () => {
         <ItemDetail 
           itemId={selectedItemId} 
           companyId={currentCompanyId}
-          onBack={() => setActiveTab('inventory')} 
+          onBack={() => {
+            setActiveTab('inventory');
+            setSelectedItemId(null);
+          }} 
           onUpdate={() => refreshInventory(currentCompanyId)}
         />
       );
@@ -112,63 +126,108 @@ const App: React.FC = () => {
     }
   };
 
-  if (!user) return <Auth onLogin={(u) => { setUser(u); refreshInventory(u.companyId); }} />;
+  if (!isAppReady) {
+    return (
+      <div className="h-screen w-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
-  const zeroStockItems = inventory.filter(item => item.quantity <= 0);
+  if (!user) {
+    return <Auth onLogin={(u) => { setUser(u); refreshInventory(u.companyId); }} />;
+  }
+
+  const zeroStockItems = inventory.filter(item => item && item.quantity <= 0);
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <aside className="hidden md:flex w-64 bg-slate-900 flex-col border-r border-slate-800">
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-xl text-white"><LayoutGrid size={24} /></div>
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+      <aside className="hidden md:flex w-64 bg-[#0f172a] flex-col border-r border-slate-800 shrink-0">
+        <div className="p-8 flex items-center gap-4">
+          <div className="bg-blue-600 p-2.5 rounded-2xl text-white shadow-xl shadow-blue-500/20"><LayoutGrid size={24} /></div>
           <div>
-            <h1 className="text-white font-black text-sm uppercase tracking-tight">{APP_NAME}</h1>
-            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest">v2.1 Stable</p>
+            <h1 className="text-white font-black text-sm uppercase tracking-tighter leading-none">{APP_NAME}</h1>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Enterprise v2.5</p>
           </div>
         </div>
-        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.filter(item => item.roles.includes(user.role)).map((item) => (
+        
+        <nav className="flex-1 px-5 py-4 space-y-2 overflow-y-auto scrollbar-hide">
+          {NAV_ITEMS.filter(item => user && item.roles.includes(user.role)).map((item) => (
             <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); setSelectedItemId(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
-                activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
+                activeTab === item.id 
+                ? 'bg-blue-600 text-white shadow-2xl shadow-blue-900/30' 
+                : 'text-slate-500 hover:text-white hover:bg-slate-800/50'
               }`}
             >
-              {item.icon} {item.label}
+              <span className={activeTab === item.id ? 'animate-pulse' : ''}>{item.icon}</span> 
+              {item.label}
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-red-400 transition-all">
-            <LogOut size={18} /> Sair
+        
+        <div className="p-5 border-t border-slate-800">
+          <button 
+            onClick={handleLogout} 
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition-all group"
+          >
+            <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" /> Sair
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-slate-200 shrink-0">
-          <div>
-            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{activeTab}</h2>
-            {impersonatedCompanyName && <p className="text-[10px] text-amber-600 font-black uppercase">Visão: {impersonatedCompanyName}</p>}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <header className="h-24 flex items-center justify-between px-10 bg-white border-b border-slate-200 shrink-0 z-20">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">{activeTab}</h2>
+            {impersonatedCompanyName && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest">Atuando como: {impersonatedCompanyName}</p>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-4">
-             <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-blue-600">
-                <Bell size={22} />
-                {zeroStockItems.length > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white">{zeroStockItems.length}</span>}
+          
+          <div className="flex items-center gap-8">
+             <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-3 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-2xl">
+                <Bell size={24} />
+                {zeroStockItems.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-4 border-white">
+                    {zeroStockItems.length}
+                  </span>
+                )}
              </button>
-             <div className="flex items-center gap-3 border-l border-slate-200 pl-4">
-                <div className="text-right">
-                  <p className="text-xs font-black text-slate-900">{user.name}</p>
-                  <p className="text-[9px] text-blue-600 font-bold uppercase">{user.role}</p>
+             
+             <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-black text-slate-900 leading-none">{user.name}</p>
+                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-2">{user.role}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-black">{user.name.charAt(0)}</div>
+                <div className="w-12 h-12 rounded-[1.5rem] bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-xl shadow-xl shadow-blue-500/20 uppercase">
+                  {user.name.charAt(0)}
+                </div>
              </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">{renderContent()}</main>
+
+        <main className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth bg-slate-50/50">
+          {renderContent()}
+        </main>
       </div>
+      
       <SupportBot />
+      
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
+        .animate-slideUp { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        .animate-popIn { animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+      `}</style>
     </div>
   );
 };

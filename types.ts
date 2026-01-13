@@ -56,6 +56,7 @@ export interface CutHistoryRecord {
   observations?: string;
   operatorName: string;
   areaUsed: number;
+  // Campos para rastrear o que saiu vs o que sobrou
   cutWidth?: number;
   cutHeight?: number;
   leftoverWidth?: number;
