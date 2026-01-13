@@ -6,7 +6,7 @@ import { STATUS_COLORS } from '../constants';
 import { 
   ArrowLeft, Scissors, Printer, MapPin, 
   X as XIcon, Package, PlusCircle, MinusCircle, 
-  History, Maximize2, Ruler, ShoppingBag, Plus, Bell
+  History, Maximize2, Ruler, ShoppingBag, Plus
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -194,7 +194,7 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
           </div>
 
           <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
-             <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3 mb-8"><History size={24} className="text-blue-500" /> Histórico de Corte</h3>
+             <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3 mb-8"><History size={24} className="text-blue-500" /> Histórico de Movimentações</h3>
              <div className="space-y-4">
                {item.history.length > 0 ? item.history.map(log => (
                  <div key={log.id} className="flex items-center gap-6 p-5 bg-slate-50 rounded-3xl border border-slate-100">
@@ -264,15 +264,15 @@ const ItemDetail: React.FC<ItemDetailProps> = ({ itemId, companyId, onBack, onUp
 
                {usageType === 'SOBRA' && (
                  <div className="space-y-4">
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
-                       <p className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2"><ShoppingBag size={14} className="text-blue-500"/> Peça Cortada (O que saiu)</p>
+                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 shadow-inner">
+                       <p className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2"><ShoppingBag size={14} className="text-blue-500"/> Peça Cortada (O que SAIU)</p>
                        <div className="grid grid-cols-2 gap-4">
                           <input type="number" placeholder="Largura (cm)" className="w-full p-4 bg-white border border-slate-200 rounded-xl font-black" value={cutWidth || ''} onChange={e => setCutWidth(Number(e.target.value))} />
                           <input type="number" placeholder="Altura (cm)" className="w-full p-4 bg-white border border-slate-200 rounded-xl font-black" value={cutHeight || ''} onChange={e => setCutHeight(Number(e.target.value))} />
                        </div>
                     </div>
-                    <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-200 space-y-4">
-                       <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2"><Scissors size={14} className="text-blue-500"/> Sobra (O que voltou ao cavalete)</p>
+                    <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-200 space-y-4 shadow-sm">
+                       <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2"><Scissors size={14} className="text-blue-500"/> Sobra (O que FICOU)</p>
                        <div className="grid grid-cols-2 gap-4">
                           <input type="number" placeholder="Largura (cm)" className="w-full p-4 bg-white border border-blue-200 rounded-xl font-black" value={leftoverWidth || ''} onChange={e => setLeftoverWidth(Number(e.target.value))} />
                           <input type="number" placeholder="Altura (cm)" className="w-full p-4 bg-white border border-blue-200 rounded-xl font-black" value={leftoverHeight || ''} onChange={e => setLeftoverHeight(Number(e.target.value))} />

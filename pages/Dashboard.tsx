@@ -11,17 +11,9 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilterRequest }) => {
-  // Área total considerando a quantidade de cada chapa
   const totalArea = inventory.reduce((acc, item) => acc + (item.availableArea * item.quantity), 0);
-  
-  // Quantidade exata cadastrada (Soma de TODAS as unidades de todas as chapas)
   const totalQuantity = inventory.reduce((acc, item) => acc + item.quantity, 0);
-  
-  // Itens com estoque zerado
-  const zeroStockItems = inventory.filter(item => item.quantity <= 0);
-  const zeroStockCount = zeroStockItems.length;
-
-  // Filtro de sobras: Itens com status "Com Sobra"
+  const zeroStockCount = inventory.filter(item => item.quantity <= 0).length;
   const itemsLeftover = inventory.filter(item => item.status === StockStatus.COM_SOBRA).length;
 
   const dataByCategory = Object.entries(
@@ -57,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
             value={totalQuantity} 
             icon={<CheckCircle size={20} className="text-green-500" />} 
             subtitle="Clique para ver disponíveis"
-            color="hover:border-green-200 hover:bg-green-50/30"
+            color="hover:border-green-200 hover:bg-green-50/30 shadow-sm"
           />
         </div>
         <div 
@@ -68,7 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
             title="Estoque Zerado" 
             value={zeroStockCount} 
             icon={<AlertTriangle size={20} className={zeroStockCount > 0 ? "text-red-500" : "text-slate-300"} />} 
-            color={zeroStockCount > 0 ? "border-red-200 bg-red-50 shadow-md" : "hover:border-red-100"}
+            color={zeroStockCount > 0 ? "border-red-200 bg-red-50" : "hover:border-red-100 shadow-sm"}
             subtitle="Clique para filtrar"
           />
         </div>
@@ -80,8 +72,8 @@ const Dashboard: React.FC<DashboardProps> = ({ inventory, onSelectItem, onFilter
             title="Estoque de Sobras" 
             value={itemsLeftover} 
             icon={<AlertCircle size={20} className="text-purple-500" />} 
-            color={itemsLeftover > 0 ? "border-purple-200 bg-purple-50 shadow-md" : "hover:border-purple-100"}
-            subtitle="Ver retalhos cortados"
+            color={itemsLeftover > 0 ? "border-purple-200 bg-purple-50" : "hover:border-purple-100 shadow-sm"}
+            subtitle="Ver retalhos de corte"
           />
         </div>
       </div>
