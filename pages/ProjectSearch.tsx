@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { InventoryItem, CutHistoryRecord } from '../types';
-import { Search, User as UserIcon, Calendar, Package, ChevronRight, FileText, Hash, Ruler, Scissors, ShoppingBag } from 'lucide-react';
+import { Search, User as UserIcon, Calendar, Package, ChevronRight, FileText, ShoppingBag } from 'lucide-react';
 
 interface ProjectSearchProps {
   inventory: InventoryItem[];
@@ -16,6 +16,7 @@ const ProjectSearch: React.FC<ProjectSearchProps> = ({ inventory, onSelectItem }
 
     inventory.forEach(item => {
       item.history.forEach(cut => {
+        // Ignora entradas de estoque na busca de obras
         if (cut.type === 'ENTRADA') return;
 
         const client = cut.clientName || 'Cliente não informado';
@@ -38,12 +39,12 @@ const ProjectSearch: React.FC<ProjectSearchProps> = ({ inventory, onSelectItem }
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
         
         <div className="flex items-center gap-5 mb-4">
-          <div className="bg-[#1e293b] text-white p-4 rounded-2xl shadow-xl">
+          <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl">
             <Search size={28} />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">Rastreio de Obras</h2>
-            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Veja os materiais entregues para cada cliente</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">Rastreio de Entregas</h2>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Localize materiais por cliente ou obra</p>
           </div>
         </div>
 
@@ -106,17 +107,17 @@ const ProjectSearch: React.FC<ProjectSearchProps> = ({ inventory, onSelectItem }
                       </div>
                       <div className="flex items-center gap-2 text-[10px] font-black text-blue-600 uppercase tracking-widest">
                         <ShoppingBag size={14} className="text-blue-400" /> 
-                        {cc.cut.cutWidth && cc.cut.cutHeight ? `${cc.cut.cutWidth}x${cc.cut.cutHeight}cm` : cc.item.thickness}
+                        {cc.cut.cutWidth && cc.cut.cutHeight ? `Peça: ${cc.cut.cutWidth}x${cc.cut.cutHeight}cm` : `Obra: ${cc.item.thickness}`}
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-slate-900 p-6 rounded-[2rem] text-center min-w-[140px] shadow-xl transform group-hover:scale-105 transition-transform">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Área Entregue</p>
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Área Vendida</p>
                     <p className="text-3xl font-black text-white tracking-tighter">
                       {cc.cut.areaUsed.toFixed(2)}
                     </p>
-                    <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">Metros Quadrados</p>
+                    <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">m² entregues</p>
                   </div>
 
                   <div className="text-slate-300 group-hover:text-blue-500 transition-colors hidden md:block">
@@ -132,8 +133,8 @@ const ProjectSearch: React.FC<ProjectSearchProps> = ({ inventory, onSelectItem }
                 <FileText size={48} />
              </div>
              <div>
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Nenhum projeto encontrado</h3>
-                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Refine sua busca por nome de cliente ou obra</p>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Sem projetos para exibir</h3>
+                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Use a barra de busca para filtrar obras</p>
              </div>
           </div>
         )}

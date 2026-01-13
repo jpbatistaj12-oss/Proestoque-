@@ -1,4 +1,4 @@
 
-// Este arquivo foi movido para pages/Dashboard.tsx para manter a estrutura organizada.
-// Favor utilizar a versão dentro da pasta pages.
-export {};
+// Este arquivo foi consolidado em pages/Dashboard.tsx.
+// Deixando vazio para evitar conflitos de resolução de módulos.
+export default function NullComponent() { return null; }
