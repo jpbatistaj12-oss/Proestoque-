@@ -1,4 +1,4 @@
 
 // Este arquivo foi consolidado em pages/Dashboard.tsx.
-// Deixando vazio para evitar conflitos de resolução de módulos.
-export default function NullComponent() { return null; }
+// Deixando vazio para garantir que o Vite utilize a versão correta da pasta pages.
+export default function Empty() { return null; }
