@@ -77,6 +77,42 @@ export const generateSyncKey = () => {
   return key;
 };
 
+// Exporta todo o banco de dados como um arquivo JSON
+export const exportDatabaseAsFile = () => {
+  const snapshot: Record<string, string | null> = {};
+  Object.values(KEYS).forEach(key => {
+    if (key !== KEYS.SESSION) {
+      snapshot[key] = localStorage.getItem(key);
+    }
+  });
+  
+  const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `backup_marmoraria_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// Restaura o banco de dados a partir de um texto JSON
+export const restoreDatabaseFromJSON = (jsonString: string): boolean => {
+  try {
+    const snapshot = JSON.parse(jsonString);
+    Object.entries(snapshot).forEach(([key, value]) => {
+      if (value) {
+        localStorage.setItem(key, value as string);
+      }
+    });
+    return true;
+  } catch (e) {
+    console.error("Erro ao restaurar banco de dados:", e);
+    return false;
+  }
+};
+
 export const getFullDatabaseSnapshot = () => {
   const snapshot: Record<string, any> = {};
   Object.values(KEYS).forEach(key => {
@@ -236,25 +272,28 @@ export const createCompanyAccount = (adminName: string, email: string, companyNa
   const companies = getAllCompanies();
   const users = safeJSONParse(KEYS.USERS, []);
   const companyId = `COMP-${Date.now()}`;
-  const adminId = `USR-${Math.random().toString(36).substr(2, 5)}`;
+  const adminId = `USR-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
   
-  companies.push({ 
+  const newCompany = { 
     id: companyId, 
     name: companyName, 
     adminId, 
     status: CompanyStatus.ACTIVE, 
     createdAt: new Date().toISOString(), 
     monthlyFee: 299 
-  });
+  };
   
-  users.push({ 
+  const newUser = { 
     id: adminId, 
     name: adminName, 
     email: normalizeEmail(email), 
     role: UserRole.ADMIN, 
     companyId, 
     password: password || 'marm123' 
-  });
+  };
+
+  companies.push(newCompany);
+  users.push(newUser);
   
   localStorage.setItem(KEYS.COMPANIES, JSON.stringify(companies));
   localStorage.setItem(KEYS.USERS, JSON.stringify(users));

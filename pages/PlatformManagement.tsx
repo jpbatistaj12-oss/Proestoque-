@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Company, CompanyStatus, UserRole } from '../types';
 import { 
   getAllCompanies, 
@@ -26,13 +26,14 @@ import {
   getCloudConfig,
   saveCloudConfig,
   generateSyncKey,
-  getFullDatabaseSnapshot,
+  exportDatabaseAsFile,
+  restoreDatabaseFromJSON,
   CloudConfig
 } from '../services/storageService';
 import { 
   Search, Lock, Unlock, UserPlus, X, Key, Globe, 
   Database, Wallet, TrendingUp, CreditCard, LayoutGrid, Plus, Tag, Package, Trash2,
-  Cloud, CloudUpload, RefreshCw, Eye, EyeOff, Check, ChevronRight
+  Cloud, CloudUpload, RefreshCw, Eye, EyeOff, Check, ChevronRight, Download, Upload, Info
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -50,6 +51,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   // Cloud States
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>(getCloudConfig());
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SUCCESS'>('IDLE');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Credentials States
   const [showCredsModal, setShowCredsModal] = useState(false);
@@ -114,11 +116,15 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
   const handleCreateAccount = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formEmail || !formCompany) return;
-    createCompanyAccount(formName, formEmail, formCompany);
-    refreshData();
-    setShowAddModal(false);
-    setFormName(''); setFormEmail(''); setFormCompany('');
-    alert("Marmoraria cadastrada com sucesso! Senha padrão: marm123");
+    try {
+      createCompanyAccount(formName, formEmail, formCompany);
+      refreshData();
+      setShowAddModal(false);
+      setFormName(''); setFormEmail(''); setFormCompany('');
+      alert("Marmoraria cadastrada com sucesso! Senha padrão: marm123");
+    } catch (err) {
+      alert("Erro ao cadastrar. Verifique se os dados são válidos.");
+    }
   };
 
   const handleCreateSyncKey = () => {
@@ -132,6 +138,23 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
     };
     saveCloudConfig(newConfig);
     setCloudConfig(newConfig);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (restoreDatabaseFromJSON(content)) {
+          alert("Banco de dados restaurado com sucesso! Recarregando...");
+          window.location.reload();
+        } else {
+          alert("Erro ao ler o arquivo de backup. Certifique-se de que é um JSON válido do sistema.");
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handlePushToCloud = () => {
@@ -155,7 +178,6 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
     }
   };
 
-  // Fixed handleToggleStatus to switch between ACTIVE and SUSPENDED status
   const handleToggleStatus = (company: Company) => {
     const newStatus = company.status === CompanyStatus.ACTIVE ? CompanyStatus.SUSPENDED : CompanyStatus.ACTIVE;
     updateCompanyStatus(company.id, newStatus);
@@ -437,7 +459,7 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
            <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl animate-popIn">
              <div className="flex justify-between items-center mb-8">
                <div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase">Gestão de Acesso</h3>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Gestão de Acesso</h3>
                   <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-1">Admin: {selectedAdmin.name}</p>
                </div>
                <button onClick={() => setShowCredsModal(false)} className="text-slate-400 hover:text-slate-900 p-2 bg-slate-50 rounded-full"><X size={24} /></button>
@@ -465,13 +487,49 @@ const PlatformManagement: React.FC<PlatformManagementProps> = ({ onImpersonate }
 
       {/* CLOUD TAB */}
       {activeTab === 'cloud' && (
-        <div className="max-w-4xl mx-auto animate-slideUp">
+        <div className="max-w-4xl mx-auto animate-slideUp space-y-8">
            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 space-y-8 relative overflow-hidden">
               <div className="flex items-center gap-4">
                  <div className="p-4 bg-blue-600 text-white rounded-[1.5rem] shadow-xl"><Cloud size={32} /></div>
                  <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-tight">Cloud Sync Hub</h3>
               </div>
+              
+              {/* Alerta explicativo sobre o armazenamento local */}
+              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex gap-4 items-start">
+                 <Info className="text-amber-500 shrink-0" size={24} />
+                 <div>
+                    <p className="text-[11px] font-black text-amber-800 uppercase tracking-widest mb-1">Nota de Segurança</p>
+                    <p className="text-xs font-bold text-amber-700 leading-relaxed">
+                       O sistema Marmoraria Control opera de forma local e segura no seu navegador. Para acessar os mesmos clientes e dados em outro dispositivo ou navegador (ex: Chrome -> Firefox), você deve baixar um backup aqui e restaurá-lo no outro dispositivo.
+                    </p>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 space-y-6 flex flex-col justify-between">
+                    <div>
+                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Portabilidade Manual</h4>
+                       <p className="text-xs font-bold text-slate-500 mb-6">Gere um arquivo com todos os dados atuais para mover o sistema de lugar.</p>
+                    </div>
+                    <button onClick={exportDatabaseAsFile} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg hover:bg-blue-600 transition-all">
+                       <Download size={20} /> Baixar Banco Completo (.json)
+                    </button>
+                 </div>
+
+                 <div className="bg-blue-50/50 p-8 rounded-[2.5rem] border border-blue-100 space-y-6 flex flex-col justify-between">
+                    <div>
+                       <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">Sincronização / Restauração</h4>
+                       <p className="text-xs font-bold text-blue-700/60 mb-6">Suba um arquivo de backup para atualizar este navegador com os dados de outro lugar.</p>
+                    </div>
+                    <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
+                    <button onClick={() => fileInputRef.current?.click()} className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg hover:bg-blue-700 transition-all">
+                       <Upload size={20} /> Restaurar via Arquivo
+                    </button>
+                 </div>
+              </div>
+
               <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 space-y-6">
+                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chave de Emparelhamento Cloud</h4>
                  <div className="flex gap-4">
                     <div className="flex-1 bg-white border-2 border-slate-200 rounded-2xl p-5 font-mono font-black text-xl text-slate-900 tracking-widest flex items-center justify-center shadow-inner uppercase">
                        {cloudConfig.syncKey || 'NÃO CONECTADO'}
