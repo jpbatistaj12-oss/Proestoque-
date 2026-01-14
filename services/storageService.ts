@@ -202,6 +202,12 @@ export const saveItem = (item: InventoryItem): void => {
   localStorage.setItem(KEYS.INVENTORY, JSON.stringify(inventory));
 };
 
+export const deleteItem = (uid: string): void => {
+  const inventory: InventoryItem[] = safeJSONParse(KEYS.INVENTORY, []);
+  const filtered = inventory.filter(i => i.uid !== uid);
+  localStorage.setItem(KEYS.INVENTORY, JSON.stringify(filtered));
+};
+
 export const getSupplies = (companyId: string): SupplyItem[] => {
   const allSupplies: SupplyItem[] = safeJSONParse(KEYS.SUPPLIES, []);
   return allSupplies.filter(s => s && s.companyId === companyId);

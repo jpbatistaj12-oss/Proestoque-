@@ -2,18 +2,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { InventoryItem, MaterialCategory, StockStatus } from '../types';
 import { STATUS_COLORS } from '../constants';
-import { Search, Package, CheckCircle, AlertCircle, Ruler, MapPin, QrCode, FileX, Database, ArrowUpAZ, ArrowDownZA, X, Scissors, ShoppingBag } from 'lucide-react';
+import { Search, Package, CheckCircle, AlertCircle, Ruler, MapPin, QrCode, FileX, Database, ArrowUpAZ, ArrowDownZA, X, Scissors, ShoppingBag, Trash2 } from 'lucide-react';
+import { deleteItem } from '../services/storageService';
 
 interface InventoryListProps {
   inventory: InventoryItem[];
   onSelectItem: (uid: string) => void;
   onNewItem: () => void;
   onScan: () => void;
+  onRefresh: () => void;
   initialFilter?: string;
   onFilterCleared?: () => void;
 }
 
-const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, onNewItem, onScan, initialFilter, onFilterCleared }) => {
+const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, onNewItem, onScan, onRefresh, initialFilter, onFilterCleared }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -66,6 +68,13 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
 
   const toggleFilter = (filter: typeof activeQuickFilter) => {
     setActiveQuickFilter(activeQuickFilter === filter ? 'all' : filter);
+  };
+
+  const handleDelete = (uid: string, name: string) => {
+    if (window.confirm(`Deseja realmente EXCLUIR permanentemente o material "${name}" do sistema?`)) {
+      deleteItem(uid);
+      onRefresh();
+    }
   };
 
   return (
@@ -175,9 +184,18 @@ const InventoryList: React.FC<InventoryListProps> = ({ inventory, onSelectItem, 
                    </div>
                 </div>
 
-                <button onClick={() => onSelectItem(item.uid)} className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all active:scale-95 shadow-lg">
-                  <QrCode size={16} /> GERENCIAR
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => onSelectItem(item.uid)} className="flex-1 flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all active:scale-95 shadow-lg">
+                    <QrCode size={16} /> GERENCIAR
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(item.uid, item.commercialName)}
+                    className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100 active:scale-90"
+                    title="Excluir Material"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}

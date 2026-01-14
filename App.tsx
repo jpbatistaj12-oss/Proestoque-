@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NAV_ITEMS, APP_NAME } from './constants';
 import { InventoryItem, User, UserRole, SupplyItem } from './types';
 import { getInventory, getCurrentUser, logout, getAllCompanies, getSupplies, getCloudConfig } from './services/storageService';
-import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu, FlaskConical, Package, Cloud } from 'lucide-react';
+import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu, FlaskConical, Package, Cloud, ChevronRight } from 'lucide-react';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -153,6 +153,7 @@ const App: React.FC = () => {
           onSelectItem={handleSelectItem} 
           onNewItem={() => { setActiveTab('add'); setIsMobileMenuOpen(false); }} 
           onScan={() => { setActiveTab('scanner'); setIsMobileMenuOpen(false); }} 
+          onRefresh={() => refreshInventory(currentCompanyId)}
           initialFilter={inventoryFilter}
           onFilterCleared={() => setInventoryFilter(undefined)}
         />
@@ -272,10 +273,65 @@ const App: React.FC = () => {
                 </div>
              )}
              <div className="relative" ref={notificationRef}>
-                <button onClick={() => setShowNotifications(!showNotifications)} className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl transition-all relative ${showNotifications ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)} 
+                  className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl transition-all relative ${showNotifications ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                >
                    <Bell size={20} />
-                   {allAlerts.length > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">{allAlerts.length}</span>}
+                   {allAlerts.length > 0 && (
+                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
+                       {allAlerts.length}
+                     </span>
+                   )}
                 </button>
+
+                {/* Dropdown de Notificações */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-4 w-80 bg-white rounded-[2rem] shadow-2xl border border-slate-100 z-50 overflow-hidden animate-popIn">
+                    <div className="p-6 bg-slate-900 text-white">
+                       <h4 className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+                         <Bell size={14} className="text-blue-400" /> Alertas de Estoque
+                       </h4>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto scrollbar-hide p-4 space-y-3">
+                      {allAlerts.length > 0 ? (
+                        allAlerts.map((alert, idx) => (
+                          <div 
+                            key={`${alert.uid}-${idx}`}
+                            onClick={() => alert.type === 'CHAPA' && handleSelectItem(alert.uid)}
+                            className={`p-4 rounded-2xl border flex items-center gap-4 transition-all cursor-pointer group ${alert.status === 'ZERADO' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}
+                          >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${alert.status === 'ZERADO' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}`}>
+                              {alert.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                               <p className="text-[10px] font-black text-slate-900 uppercase truncate leading-tight">{alert.name}</p>
+                               <div className="flex items-center gap-2 mt-1">
+                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{alert.type}</span>
+                                 <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                 <span className={`text-[8px] font-black uppercase tracking-widest ${alert.status === 'ZERADO' ? 'text-red-600' : 'text-amber-600'}`}>{alert.status}</span>
+                               </div>
+                            </div>
+                            <ChevronRight size={14} className="text-slate-300 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-10 text-center space-y-3 opacity-40">
+                          <AlertCircle size={32} className="mx-auto text-slate-300" />
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tudo em dia!</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                       <button 
+                        onClick={() => { setActiveTab('inventory'); setShowNotifications(false); }}
+                        className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em] hover:text-blue-800 transition-colors"
+                       >
+                         Ver inventário completo
+                       </button>
+                    </div>
+                  </div>
+                )}
              </div>
              <div className="flex items-center gap-3 md:gap-4 border-l border-slate-200 pl-4 md:pl-6">
                 <div className="text-right hidden sm:block">
