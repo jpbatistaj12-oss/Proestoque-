@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { User, UserRole } from '../types';
-import { login } from '../services/storageService';
-import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle, Shield, HardHat, Info, Sparkles } from 'lucide-react';
+import { login, restoreDatabaseFromJSON } from '../services/storageService';
+import { LogIn, Building2, Mail, Lock, Eye, EyeOff, AlertCircle, Shield, HardHat, Info, Sparkles, Upload } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -15,10 +15,28 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeRole, setActiveRole] = useState<UserRole>(UserRole.ADMIN);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleRoleChange = (role: UserRole) => {
     setActiveRole(role);
     setError(null);
+  };
+
+  const handleImportBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (restoreDatabaseFromJSON(content)) {
+          alert("Dados restaurados! Tente logar agora.");
+          window.location.reload();
+        } else {
+          alert("Arquivo inválido.");
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -34,7 +52,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       return setError('Preencha seu e-mail e sua senha.');
     }
 
-    // Simulação de delay para feedback visual do loader
     setTimeout(() => {
       try {
         const user = login(cleanEmail, cleanPass, activeRole);
@@ -51,17 +68,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Elementos de Fundo Dinâmicos */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
-      
-      {/* Grid de padrão sutil */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
 
       <div className="w-full max-w-md relative animate-slideUp">
         <div className="bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden border border-white/20 relative z-10">
           
-          {/* Header com Gradiente */}
           <div className="bg-gradient-to-b from-slate-50 to-white pt-12 pb-8 px-8 text-center border-b border-slate-100">
             <div className="relative inline-block mb-6">
               <div className="absolute inset-0 bg-blue-600 blur-2xl opacity-20 animate-pulse"></div>
@@ -84,7 +97,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
 
           <div className="p-8 sm:p-10 space-y-8">
-            {/* Seletor de Perfil Estilo Toggle */}
             <div className="flex bg-slate-100 p-1.5 rounded-[1.5rem] gap-1 relative border border-slate-200/50">
               <button 
                 type="button"
@@ -100,10 +112,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               >
                 <HardHat size={16} /> Colaborador
               </button>
-              {/* Slider animado do seletor */}
-              <div 
-                className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-2xl shadow-md transition-all duration-500 ease-out ${activeRole === UserRole.ADMIN ? 'left-1.5' : 'left-[50%]'}`}
-              ></div>
+              <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-2xl shadow-md transition-all duration-500 ease-out ${activeRole === UserRole.ADMIN ? 'left-1.5' : 'left-[50%]'}`}></div>
             </div>
 
             {error && (
@@ -159,9 +168,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 disabled={loading}
                 className={`w-full relative group overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-5 rounded-[2rem] font-black shadow-[0_10px_30px_rgba(59,130,246,0.4)] transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm ${loading ? 'opacity-80 cursor-not-allowed' : 'hover:shadow-[0_15px_40px_rgba(59,130,246,0.6)]'}`}
               >
-                {/* Efeito de brilho no hover */}
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                
                 {loading ? (
                   <div className="flex items-center justify-center gap-3">
                     <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -176,7 +183,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </button>
             </form>
 
-            <div className="text-center pt-2">
+            <div className="text-center pt-2 space-y-4">
+               <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportBackup} />
+               <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 mx-auto text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline group"
+               >
+                  <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform" /> Acessando de outro computador? Importar Backup
+               </button>
+               
                <div className="inline-flex items-center gap-3 px-5 py-3 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:border-slate-200 transition-all cursor-help group">
                  <Info size={16} className="text-blue-500 group-hover:animate-bounce" />
                  <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none">
@@ -186,8 +201,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
           </div>
         </div>
-        
-        {/* Footer sutil fora do card */}
         <p className="text-center text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-8 opacity-50">
           Secure Infrastructure v2.1.0 • Marmoraria Control
         </p>

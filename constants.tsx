@@ -10,7 +10,8 @@ import {
   Search,
   Settings,
   ArrowLeftCircle,
-  FlaskConical
+  FlaskConical,
+  RefreshCcw
 } from 'lucide-react';
 import { MaterialCategory } from './types';
 
@@ -38,6 +39,7 @@ export const NAV_ITEMS = [
   { id: 'scanner', label: 'Scanner', icon: <QrCode size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
   { id: 'team', label: 'Equipe', icon: <Users size={20} />, roles: ['ADMIN'], clientOnly: true },
   { id: 'history', label: 'Movimentações', icon: <History size={20} />, roles: ['ADMIN', 'OPERATOR'], clientOnly: true },
+  { id: 'sync', label: 'Sincronização', icon: <RefreshCcw size={20} />, roles: ['ADMIN'], clientOnly: true },
   
   // Itens Globais/Plataforma
   { id: 'platform', label: 'Plataforma', icon: <Settings size={20} />, roles: ['SUPER_ADMIN'], platformOnly: true },

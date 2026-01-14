@@ -19,6 +19,7 @@ import PlatformManagement from './pages/PlatformManagement';
 import SupportBot from './components/SupportBot';
 import SuppliesInventory from './pages/SuppliesInventory';
 import AddSupply from './pages/AddSupply';
+import SyncSettings from './pages/SyncSettings';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -48,7 +49,6 @@ const App: React.FC = () => {
     }
     setIsAppReady(true);
 
-    // Listener para mudanças na Nuvem feitas por outros componentes
     const handleCloudUpdate = () => {
       setCloudStatus(getCloudConfig().status);
     };
@@ -122,7 +122,11 @@ const App: React.FC = () => {
   const menuItems = NAV_ITEMS.filter(item => {
     if (!user) return false;
     if (user.role === UserRole.SUPER_ADMIN && !impersonatedCompanyId) return item.id === 'platform';
-    if (impersonatedCompanyId || user.role !== UserRole.SUPER_ADMIN) return item.id !== 'platform';
+    if (impersonatedCompanyId || user.role !== UserRole.SUPER_ADMIN) {
+       if (item.id === 'platform') return false;
+       if (!item.roles.includes(user.role)) return false;
+       return true;
+    }
     return false;
   });
 
@@ -175,6 +179,7 @@ const App: React.FC = () => {
       }} />;
       case 'team': return <TeamManagement user={{ id: user!.id, companyId: currentCompanyId }} />;
       case 'history': return <HistoryLog inventory={inventory} />;
+      case 'sync': return <SyncSettings />;
       case 'platform': return <PlatformManagement onImpersonate={(id) => { setImpersonatedCompanyId(id); refreshInventory(id); setActiveTab('dashboard'); }} />;
       default: return <Dashboard inventory={inventory} onSelectItem={handleSelectItem} />;
     }
@@ -285,7 +290,6 @@ const App: React.FC = () => {
                    )}
                 </button>
 
-                {/* Dropdown de Notificações */}
                 {showNotifications && (
                   <div className="absolute right-0 mt-4 w-80 bg-white rounded-[2rem] shadow-2xl border border-slate-100 z-50 overflow-hidden animate-popIn">
                     <div className="p-6 bg-slate-900 text-white">
