@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NAV_ITEMS, APP_NAME } from './constants';
 import { InventoryItem, User, UserRole, SupplyItem } from './types';
-import { getInventory, getCurrentUser, logout, getAllCompanies, getSupplies } from './services/storageService';
-import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu, FlaskConical, Package } from 'lucide-react';
+import { getInventory, getCurrentUser, logout, getAllCompanies, getSupplies, getCloudConfig } from './services/storageService';
+import { LogOut, LayoutGrid, ArrowLeftCircle, Bell, Settings, X, ShoppingCart, AlertCircle, Menu, FlaskConical, Package, Cloud } from 'lucide-react';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -29,6 +29,7 @@ const App: React.FC = () => {
   const [isAppReady, setIsAppReady] = useState(false);
   const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
   const [inventoryFilter, setInventoryFilter] = useState<string | undefined>(undefined);
+  const [cloudStatus, setCloudStatus] = useState<'ONLINE' | 'OFFLINE'>(getCloudConfig().status);
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -47,13 +48,24 @@ const App: React.FC = () => {
     }
     setIsAppReady(true);
 
+    // Listener para mudanças na Nuvem feitas por outros componentes
+    const handleCloudUpdate = () => {
+      setCloudStatus(getCloudConfig().status);
+    };
+
+    window.addEventListener('marm_cloud_updated', handleCloudUpdate);
+
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener('marm_cloud_updated', handleCloudUpdate);
+    };
   }, []);
 
   const refreshInventory = (companyId: string) => {
@@ -87,13 +99,12 @@ const App: React.FC = () => {
   const currentCompanyId = impersonatedCompanyId || user?.companyId || '';
   const impersonatedCompanyName = impersonatedCompanyId ? getAllCompanies().find(c => c.id === impersonatedCompanyId)?.name : null;
 
-  // LOGICA DE ALERTAS UNIFICADA
-  const slabAlerts = inventory.filter(item => Number(item.quantity) <= 0).map(item => ({
+  const slabAlerts = inventory.filter(item => Number(item.quantity) <= item.minQuantity).map(item => ({
     uid: item.uid,
     id: item.id,
     name: item.commercialName,
     type: 'CHAPA',
-    status: 'ZERADO',
+    status: Number(item.quantity) <= 0 ? 'ZERADO' : 'BAIXO',
     icon: <Package size={16} />
   }));
 
@@ -114,6 +125,13 @@ const App: React.FC = () => {
     if (impersonatedCompanyId || user.role !== UserRole.SUPER_ADMIN) return item.id !== 'platform';
     return false;
   });
+
+  const getActiveTabLabel = () => {
+    if (activeTab === 'platform') return 'GERENCIAMENTO GLOBAL';
+    if (impersonatedCompanyName) return impersonatedCompanyName.toUpperCase();
+    const item = NAV_ITEMS.find(i => i.id === activeTab);
+    return item ? item.label.toUpperCase() : activeTab.toUpperCase();
+  };
 
   const renderContent = () => {
     if (selectedItemUid && activeTab === 'detail') {
@@ -218,7 +236,6 @@ const App: React.FC = () => {
             </div>
             <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button>
           </div>
-          
           <nav className="flex-1 px-5 py-4 space-y-2 overflow-y-auto scrollbar-hide">
              {menuItems.map((item) => (
               <button
@@ -232,12 +249,6 @@ const App: React.FC = () => {
               </button>
             ))}
           </nav>
-
-          <div className="p-5 border-t border-slate-800">
-            <button onClick={handleLogout} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest text-red-400 bg-red-500/5 hover:bg-red-500/10 transition-all">
-              <LogOut size={20} /> Sair
-            </button>
-          </div>
         </div>
       </div>
 
@@ -247,88 +258,35 @@ const App: React.FC = () => {
             <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/20 active:scale-90 transition-transform">
               <LayoutGrid size={22} />
             </button>
-            
-            <div className="min-w-0">
-              <h2 className="text-lg md:text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none truncate">
-                {activeTab === 'platform' ? 'Gerenciamento Global' : impersonatedCompanyName || activeTab}
+            <div className="min-w-0 py-2">
+              <h2 className="text-lg md:text-2xl font-black text-slate-900 uppercase tracking-tighter leading-tight truncate">
+                {getActiveTabLabel()}
               </h2>
-              {impersonatedCompanyName && (
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse"></span>
-                  <p className="text-[8px] md:text-[10px] text-amber-600 font-black uppercase tracking-widest truncate">Sessão Admin Central</p>
-                </div>
-              )}
             </div>
           </div>
-          
           <div className="flex items-center gap-3 md:gap-6">
+             {user.role === UserRole.SUPER_ADMIN && (
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${cloudStatus === 'ONLINE' ? 'bg-blue-50 border-blue-100 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                   <Cloud size={16} className={cloudStatus === 'ONLINE' ? 'animate-pulse' : ''} />
+                   <span className="text-[10px] font-black uppercase tracking-widest">{cloudStatus}</span>
+                </div>
+             )}
              <div className="relative" ref={notificationRef}>
-                <button 
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl transition-all relative ${showNotifications ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                >
-                   <Bell size={20} className={allAlerts.length > 0 && !showNotifications ? 'animate-bounce-slow md:block' : ''} />
-                   {allAlerts.length > 0 && (
-                     <span className="absolute -top-1 -right-1 w-5 h-5 md:w-6 md:h-6 bg-red-500 text-white text-[9px] md:text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-                        {allAlerts.length}
-                     </span>
-                   )}
+                <button onClick={() => setShowNotifications(!showNotifications)} className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl transition-all relative ${showNotifications ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                   <Bell size={20} />
+                   {allAlerts.length > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-pulse">{allAlerts.length}</span>}
                 </button>
-
-                {showNotifications && (
-                  <div className="absolute right-0 mt-4 w-72 md:w-80 bg-white rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden animate-popIn z-[100]">
-                    <div className="bg-slate-900 p-4 md:p-5 text-white flex justify-between items-center">
-                       <h4 className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Alertas de Reposição</h4>
-                       <ShoppingCart size={14} className="text-blue-400" />
-                    </div>
-                    <div className="max-h-[300px] md:max-h-[350px] overflow-y-auto p-2 scrollbar-hide">
-                       {allAlerts.length > 0 ? (
-                         allAlerts.map(alert => (
-                           <div 
-                             key={alert.uid} 
-                             onClick={() => {
-                               if (alert.type === 'CHAPA') handleSelectItem(alert.uid);
-                               else { setActiveTab('supplies'); setShowNotifications(false); }
-                             }}
-                             className="p-3 md:p-4 hover:bg-slate-50 rounded-2xl cursor-pointer flex items-center gap-3 md:gap-4 transition-all group"
-                           >
-                              <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-colors ${alert.status === 'ZERADO' ? 'bg-red-50 text-red-500 group-hover:bg-red-500 group-hover:text-white' : 'bg-amber-50 text-amber-500 group-hover:bg-amber-500 group-hover:text-white'}`}>
-                                 {alert.icon}
-                              </div>
-                              <div className="min-w-0">
-                                 <p className="text-[11px] md:text-xs font-black text-slate-900 uppercase truncate">{alert.name}</p>
-                                 <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase mt-1 truncate">
-                                   ID: {alert.id} • {alert.type} • {alert.status}
-                                 </p>
-                              </div>
-                           </div>
-                         ))
-                       ) : (
-                         <div className="p-8 text-center space-y-3 opacity-40">
-                            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mx-auto"><Bell size={18} /></div>
-                            <p className="text-[8px] font-black uppercase tracking-widest">Nenhum alerta pendente</p>
-                         </div>
-                       )}
-                    </div>
-                  </div>
-                )}
              </div>
-
              <div className="flex items-center gap-3 md:gap-4 border-l border-slate-200 pl-4 md:pl-6">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-black text-slate-900 leading-none">{user.name}</p>
                   <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-2">{user.role}</p>
                 </div>
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-[1.5rem] bg-slate-900 text-white flex items-center justify-center font-black text-lg md:text-xl shadow-xl uppercase">
-                  {user.name.charAt(0)}
-                </div>
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-[1.5rem] bg-slate-900 text-white flex items-center justify-center font-black text-lg md:text-xl shadow-xl uppercase">{user.name.charAt(0)}</div>
              </div>
           </div>
         </header>
-
-        <main className="flex-1 overflow-y-auto p-4 md:p-10 scroll-smooth bg-slate-50/50">
-          {renderContent()}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 md:p-10 scroll-smooth bg-slate-50/50">{renderContent()}</main>
       </div>
       <SupportBot />
     </div>

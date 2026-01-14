@@ -19,6 +19,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
   const [generatedSerial, setGeneratedSerial] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [nextIndex, setNextIndex] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     uid: '',
@@ -51,71 +52,32 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
   }, [companyId]);
 
   const handleSelectPredefined = (mat: GlobalMaterial) => {
-    const existing = inventory.find(i => i.commercialName === mat.name);
+    // Ao selecionar um material pré-definido, preenchemos apenas os dados básicos.
+    // Garantimos que o ID de série seja sempre o próximo disponível para criar um novo registro.
+    setFormData({
+      ...formData,
+      commercialName: mat.name,
+      category: mat.category,
+      id: nextIndex.toString().padStart(4, '0')
+    });
+    setGeneratedSerial(nextIndex.toString().padStart(4, '0'));
     setIsCustomCategory(false);
-    
-    if (existing) {
-      setFormData({
-        uid: existing.uid,
-        id: existing.id,
-        category: existing.category,
-        commercialName: existing.commercialName,
-        thickness: existing.thickness,
-        width: existing.width,
-        height: existing.height,
-        location: existing.location || '',
-        quantity: 1, 
-        minQuantity: existing.minQuantity,
-        supplier: existing.supplier,
-      });
-      setPhotos(existing.photos);
-      setGeneratedSerial(existing.id);
-    } else {
-      setFormData({
-        ...formData,
-        commercialName: mat.name,
-        category: mat.category,
-        id: nextIndex.toString().padStart(4, '0')
-      });
-      setGeneratedSerial(nextIndex.toString().padStart(4, '0'));
-      setPhotos([]);
-    }
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!formData.commercialName || formData.quantity <= 0) {
       alert('Nome e Quantidade são obrigatórios.');
       return;
     }
 
-    const existingIndex = inventory.findIndex(i => i.commercialName === formData.commercialName);
-    let itemToSave: InventoryItem;
+    setIsSubmitting(true);
 
-    if (existingIndex >= 0) {
-      const existing = inventory[existingIndex];
-      itemToSave = {
-        ...existing,
-        quantity: existing.quantity + formData.quantity,
-        width: formData.width || existing.width,
-        height: formData.height || existing.height,
-        category: formData.category,
-        photos: photos.length > 0 ? photos : existing.photos,
-        lastUpdatedAt: new Date().toISOString(),
-        status: (existing.quantity + formData.quantity) > 0 ? StockStatus.DISPONIVEL : StockStatus.ESGOTADO,
-        history: [{
-          id: `H-${Date.now()}`,
-          date: new Date().toISOString().split('T')[0],
-          project: 'Reposição manual',
-          clientName: 'Estoque',
-          type: 'ENTRADA',
-          quantityChange: formData.quantity,
-          operatorName: user.name,
-          areaUsed: 0
-        }, ...existing.history]
-      };
-    } else {
-      itemToSave = {
+    try {
+      // Sempre criamos um novo item/lote por padrão para garantir rastreabilidade individual
+      const itemToSave: InventoryItem = {
         uid: `ITEM-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         id: generatedSerial, 
         entryIndex: nextIndex,
@@ -130,7 +92,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
         minQuantity: formData.minQuantity,
         supplier: formData.supplier,
         entryDate: new Date().toISOString(),
-        photos: photos,
+        photos: photos.length > 0 ? photos : ['https://images.unsplash.com/photo-1590373199833-2808c7d6c8b4?auto=format&fit=crop&q=80&w=400'],
         status: StockStatus.DISPONIVEL,
         availableArea: (formData.width * formData.height) / 10000,
         history: [{
@@ -145,16 +107,23 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
         }],
         lastUpdatedAt: new Date().toISOString()
       };
-    }
 
-    saveItem(itemToSave);
-    onComplete();
+      saveItem(itemToSave);
+      
+      // Feedback visual antes de completar
+      setTimeout(() => {
+        onComplete();
+      }, 500);
+    } catch (error) {
+      console.error("Erro ao salvar item:", error);
+      alert("Erro ao salvar material. Verifique os dados e tente novamente.");
+      setIsSubmitting(false);
+    }
   };
 
-  // Filtra o catálogo lateral baseado na categoria atual selecionada no formulário
   const filteredCatalog = globalMaterials.filter(m => {
     const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = m.category === formData.category;
+    const matchesCategory = isCustomCategory || m.category === formData.category;
     return matchesSearch && matchesCategory;
   });
 
@@ -167,7 +136,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
           </div>
           <div>
             <h2 className="text-4xl font-black text-[#1e293b] tracking-tighter">Gerenciar Estoque</h2>
-            <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">Cadastre novos tipos ou adicione quantidade</p>
+            <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">Cadastre novos lotes ou materiais</p>
           </div>
         </div>
         <div className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
@@ -202,6 +171,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                 {filteredCatalog.length > 0 ? filteredCatalog.map((mat, i) => (
                   <button 
                     key={i} 
+                    type="button"
                     onClick={() => handleSelectPredefined(mat)}
                     className={`w-full p-5 rounded-3xl text-left transition-all group flex justify-between items-center ${formData.commercialName === mat.name ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-50 hover:bg-slate-100'}`}
                   >
@@ -214,7 +184,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                 )) : (
                   <div className="py-10 text-center opacity-40 grayscale flex flex-col items-center gap-3">
                     <Package size={32} />
-                    <p className="text-[9px] font-black uppercase tracking-widest">Nenhum {formData.category} encontrado</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest">Nenhum material encontrado</p>
                   </div>
                 )}
              </div>
@@ -227,7 +197,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Material</label>
-                <input type="text" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" value={formData.commercialName} onChange={e => setFormData({...formData, commercialName: e.target.value})} required placeholder="Selecione ou digite..." />
+                <input type="text" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" value={formData.commercialName} onChange={e => setFormData({...formData, commercialName: e.target.value})} required placeholder="Ex: Preto São Gabriel" />
               </div>
               
               <div className="space-y-2">
@@ -275,10 +245,10 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="space-y-2 col-span-2">
-                 <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest ml-1">Quantidade a Adicionar</label>
+                 <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest ml-1">Quantidade Entrando</label>
                  <div className="relative">
                     <Package className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400" size={24} />
-                    <input type="number" className="w-full pl-14 p-5 bg-blue-50/50 border-2 border-blue-100 rounded-3xl font-black text-2xl text-blue-700 outline-none" value={formData.quantity} onChange={e => setFormData({...formData, quantity: Number(e.target.value)})} required min="1" />
+                    <input type="number" className="w-full pl-14 p-5 bg-blue-50/50 border-2 border-blue-100 rounded-3xl font-black text-2xl text-blue-700 outline-none" value={formData.quantity} onChange={e => setFormData({...formData, quantity: Math.max(1, Number(e.target.value))})} required min="1" />
                  </div>
               </div>
               <div className="space-y-2">
@@ -286,8 +256,8 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                  <input type="text" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-center" value={formData.thickness} onChange={e => setFormData({...formData, thickness: e.target.value})} />
               </div>
               <div className="space-y-2">
-                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Estoque Mín.</label>
-                 <input type="number" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-center" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: Number(e.target.value)})} />
+                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Aviso Est. Baixo</label>
+                 <input type="number" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-center" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: Math.max(0, Number(e.target.value))})} />
               </div>
             </div>
 
@@ -301,7 +271,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                </div>
                <div className="space-y-2">
                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Altura (cm)</label>
-                 <div className="relative rotate-90 md:rotate-0">
+                 <div className="relative">
                     <Maximize2 className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
                     <input type="number" placeholder="Ex: 180" className="w-full pl-14 p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-slate-900 outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all" value={formData.height || ''} onChange={e => setFormData({...formData, height: Number(e.target.value)})} />
                  </div>
@@ -316,7 +286,7 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                        {photos.length > 0 ? <img src={photos[0]} className="w-full h-full object-cover" /> : <ImageIcon size={40} className="text-slate-300" />}
                      </div>
                      <button type="button" onClick={() => fileInputRef.current?.click()} className="px-8 py-4 bg-[#1e293b] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-slate-800 transition-all shadow-xl">
-                       <Camera size={20} /> {photos.length > 0 ? 'Trocar Foto' : 'Adicionar Foto'}
+                       <Camera size={20} /> Adicionar Foto
                      </button>
                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={e => {
                        const file = e.target.files?.[0];
@@ -334,14 +304,24 @@ const AddItem: React.FC<AddItemProps> = ({ onComplete, user, companyId }) => {
                     <QRCodeSVG value={generatedSerial} size={80} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Nº Série Numérico</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Nº Série Gerado</p>
                     <p className="text-xl font-black text-slate-900 tracking-tighter">{generatedSerial}</p>
                   </div>
                </div>
             </div>
 
-            <button type="submit" className="w-full bg-[#3b82f6] text-white py-8 rounded-[2.5rem] font-black uppercase shadow-[0_20px_40px_rgba(59,130,246,0.3)] hover:bg-blue-600 transition-all active:scale-95 text-xl flex items-center justify-center gap-4">
-              <Save size={28} /> CONFIRMAR ENTRADA
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className={`w-full py-8 rounded-[2.5rem] font-black uppercase shadow-[0_20px_40px_rgba(59,130,246,0.3)] transition-all active:scale-95 text-xl flex items-center justify-center gap-4 ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#3b82f6] hover:bg-blue-600 text-white'}`}
+            >
+              {isSubmitting ? (
+                <>Salvando...</>
+              ) : (
+                <>
+                  <Save size={28} /> CONFIRMAR ENTRADA
+                </>
+              )}
             </button>
           </form>
         </div>
